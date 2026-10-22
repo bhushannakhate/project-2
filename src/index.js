@@ -9,7 +9,7 @@ import { validateCustomer } from './customerSchema.js'
 const app = express()
 const port = Number(process.env.PORT || 4000)
 const projectId = process.env.FIRESTORE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT
-const allowedOrigins = (process.env.WEB_ORIGIN || 'http://localhost:5173')
+const allowedOrigins = (process.env.WEB_ORIGIN || 'http://localhost:5173,http://127.0.0.1:5173')
   .split(',').map((origin) => origin.trim()).filter(Boolean)
 
 app.use(cors({ origin: (origin, callback) => {

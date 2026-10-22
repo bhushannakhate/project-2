@@ -16,7 +16,7 @@ Required: `fullName`, `email`, `username`. Optional: `phone`, `bio`, `interests`
 
 To populate the lab collection with 10 clearly fictional examples, authenticate with the Google Cloud project and run `npm run seed:demo` once. This explicit command writes records named `demo-001` through `demo-010`; it never runs automatically. Use only fictional data for screenshots and delete the sample records when no longer needed.
 
-The local React dev server proxies `/api` to `http://localhost:4000`. The API also serves `GET /api/health`, `GET /api/customers?limit=10`, `POST /api/customers`, `PATCH /api/customers/:id`, and `DELETE /api/customers/:id`.
+The local React dev server proxies `/api` to `http://localhost:4000`. If the browser opens the frontend as `http://127.0.0.1:5173`, include that exact origin in the backend's comma-separated `WEB_ORIGIN` setting as well as `http://localhost:5173`; browsers treat them as different origins. The API also serves `GET /api/health`, `GET /api/customers?limit=10`, `POST /api/customers`, `PATCH /api/customers/:id`, and `DELETE /api/customers/:id`.
 
 ### Customer API
 
