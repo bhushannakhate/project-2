@@ -16,15 +16,18 @@ Required: `fullName`, `email`, `username`. Optional: `phone`, `bio`, `interests`
 
 To populate the lab collection with 10 clearly fictional examples, authenticate with the Google Cloud project and run `npm run seed:demo` once. This explicit command writes records named `demo-001` through `demo-010`; it never runs automatically. Use only fictional data for screenshots and delete the sample records when no longer needed.
 
-The local React dev server proxies `/api` to `http://localhost:4000`. The API also serves `GET /api/health`, `GET /api/customers?limit=10`, `POST /api/customers`, and `DELETE /api/customers/:id`.
+The local React dev server proxies `/api` to `http://localhost:4000`. The API also serves `GET /api/health`, `GET /api/customers?limit=10`, `POST /api/customers`, `PATCH /api/customers/:id`, and `DELETE /api/customers/:id`.
 
 ### Customer API
 
 - `GET /api/customers?limit=10` — list up to 10 newest records.
 - `POST /api/customers` — create a customer. Required JSON fields: `fullName`, `email`, `username`. Optional: `phone`, `bio`, `interests`, `preferredCategory`, `marketingOptIn`.
+- `PATCH /api/customers/:id` — update a customer's profile by document ID. Send the complete customer profile using the same JSON fields as `POST`; the existing `createdAt` timestamp is retained and `updatedAt` is added. Duplicate emails and missing IDs return `409` and `404` respectively.
 - `DELETE /api/customers/:id` — delete the Firestore document by its document ID. A successful request returns `{ "message": "Customer deleted.", "id": "..." }`; an unknown ID returns `404`.
 
-Example deletion: `curl -X DELETE http://localhost:4000/api/customers/demo-001`. Deletion is permanent; verify the ID before sending the request.
+Example update: `curl -X PATCH http://localhost:4000/api/customers/demo-001 -H 'Content-Type: application/json' -d '{"fullName":"Avery Morgan","email":"avery.morgan@example.test","username":"averym","phone":"","bio":"Updated sample profile","interests":["watercolor"],"preferredCategory":"Art & illustration","marketingOptIn":false}'`. Example deletion: `curl -X DELETE http://localhost:4000/api/customers/demo-001`. Deletion is permanent; verify the ID before sending the request.
+
+The `/customers` page provides **Edit** and **Delete** actions for each displayed customer. Editing loads the saved profile into the form; deleting asks for confirmation before permanently removing the Firestore document.
 
 ### View the database
 

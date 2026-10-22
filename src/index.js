@@ -58,6 +58,35 @@ app.post('/api/customers', async (request, response, next) => {
   }
 })
 
+app.patch('/api/customers/:id', async (request, response, next) => {
+  const { id } = request.params
+  if (!id || id.includes('/')) {
+    return response.status(400).json({ error: 'Provide a valid customer document ID.' })
+  }
+
+  const { customer: updatedCustomer, error } = validateCustomer(request.body)
+  if (error) return response.status(400).json({ error })
+
+  try {
+    const document = customers.doc(id)
+    const existing = await document.get()
+    if (!existing.exists) {
+      return response.status(404).json({ error: 'Customer not found.' })
+    }
+
+    const duplicateEmail = await customers.where('email', '==', updatedCustomer.email).limit(2).get()
+    if (duplicateEmail.docs.some((match) => match.id !== id)) {
+      return response.status(409).json({ error: 'A customer with this email already exists.' })
+    }
+
+    await document.update({ ...updatedCustomer, updatedAt: FieldValue.serverTimestamp() })
+    const saved = await document.get()
+    response.json({ customer: { id: saved.id, ...saved.data() } })
+  } catch (updateError) {
+    next(updateError)
+  }
+})
+
 app.delete('/api/customers/:id', async (request, response, next) => {
   const { id } = request.params
   if (!id || id.includes('/')) {
