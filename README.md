@@ -16,7 +16,19 @@ Required: `fullName`, `email`, `username`. Optional: `phone`, `bio`, `interests`
 
 To populate the lab collection with 10 clearly fictional examples, authenticate with the Google Cloud project and run `npm run seed:demo` once. This explicit command writes records named `demo-001` through `demo-010`; it never runs automatically. Use only fictional data for screenshots and delete the sample records when no longer needed.
 
-The local React dev server proxies `/api` to `http://localhost:4000`. The API also serves `GET /api/health`, `GET /api/customers?limit=10`, and `POST /api/customers`.
+The local React dev server proxies `/api` to `http://localhost:4000`. The API also serves `GET /api/health`, `GET /api/customers?limit=10`, `POST /api/customers`, and `DELETE /api/customers/:id`.
+
+### Customer API
+
+- `GET /api/customers?limit=10` — list up to 10 newest records.
+- `POST /api/customers` — create a customer. Required JSON fields: `fullName`, `email`, `username`. Optional: `phone`, `bio`, `interests`, `preferredCategory`, `marketingOptIn`.
+- `DELETE /api/customers/:id` — delete the Firestore document by its document ID. A successful request returns `{ "message": "Customer deleted.", "id": "..." }`; an unknown ID returns `404`.
+
+Example deletion: `curl -X DELETE http://localhost:4000/api/customers/demo-001`. Deletion is permanent; verify the ID before sending the request.
+
+### View the database
+
+Open the [Firestore Data console](https://console.firebase.google.com/project/project-2-pinboard-2026/firestore/databases/-default-/data) or [Google Cloud Firestore](https://console.cloud.google.com/firestore/databases/-default-/data?project=project-2-pinboard-2026). Select the `customers` collection to inspect documents and fields. You can also list documents through the API: `curl http://localhost:4000/api/customers?limit=10`.
 
 ## Deploy the API to Cloud Run
 

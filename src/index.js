@@ -58,6 +58,26 @@ app.post('/api/customers', async (request, response, next) => {
   }
 })
 
+app.delete('/api/customers/:id', async (request, response, next) => {
+  const { id } = request.params
+  if (!id || id.includes('/')) {
+    return response.status(400).json({ error: 'Provide a valid customer document ID.' })
+  }
+
+  try {
+    const customer = customers.doc(id)
+    const document = await customer.get()
+    if (!document.exists) {
+      return response.status(404).json({ error: 'Customer not found.' })
+    }
+
+    await customer.delete()
+    response.json({ message: 'Customer deleted.', id })
+  } catch (error) {
+    next(error)
+  }
+})
+
 app.use((error, _request, response, _next) => {
   void _next
   console.error('Customer API error:', error.message)
