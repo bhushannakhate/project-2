@@ -2,13 +2,13 @@ import process from 'node:process'
 import 'dotenv/config'
 import cors from 'cors'
 import express from 'express'
-import { applicationDefault, getApps, initializeApp } from 'firebase-admin/app'
-import { FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { MongoClient, ObjectId } from 'mongodb'
 import { validateCustomer } from './customerSchema.js'
 
 const app = express()
 const port = Number(process.env.PORT || 4000)
-const projectId = process.env.FIRESTORE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT
+const mongodbUri = process.env.MONGODB_URI
+const databaseName = process.env.MONGODB_DATABASE || 'project2'
 const allowedOrigins = (process.env.WEB_ORIGIN || 'http://localhost:5173,http://127.0.0.1:5173')
   .split(',').map((origin) => origin.trim()).filter(Boolean)
 
@@ -18,99 +18,107 @@ app.use(cors({ origin: (origin, callback) => {
 } }))
 app.use(express.json({ limit: '20kb' }))
 
-if (!projectId) {
-  throw new Error('Set FIRESTORE_PROJECT_ID to the Google Cloud project that owns the Firestore database.')
+if (!mongodbUri) {
+  throw new Error('Set MONGODB_URI to connect to the MongoDB database.')
 }
-
-if (!getApps().length) {
-  initializeApp({ credential: applicationDefault(), projectId })
-}
-
-const customers = getFirestore().collection('customers')
 
 app.get('/api/health', (_request, response) => response.json({ status: 'ok' }))
 
-app.get('/api/customers', async (request, response, next) => {
+function mongoId(id) {
+  return /^[\da-f]{24}$/i.test(id) ? new ObjectId(id) : id
+}
+
+function toApiCustomer({ _id, ...customer }) {
+  return { id: _id.toString(), ...customer }
+}
+
+async function start() {
+  const client = new MongoClient(mongodbUri)
+  let customers
   try {
-    const limit = Math.min(Math.max(Number.parseInt(request.query.limit, 10) || 10, 1), 10)
-    const snapshot = await customers.orderBy('createdAt', 'desc').limit(limit).get()
-    const records = snapshot.docs.map((document) => ({ id: document.id, ...document.data() }))
-    response.json({ customers: records, count: records.length })
+    await client.connect()
+    customers = client.db(databaseName).collection('customers')
+    await customers.createIndex({ email: 1 }, { unique: true })
   } catch (error) {
-    next(error)
-  }
-})
-
-app.post('/api/customers', async (request, response, next) => {
-  const { customer, error } = validateCustomer(request.body)
-  if (error) return response.status(400).json({ error })
-
-  try {
-    const existingEmail = await customers.where('email', '==', customer.email).limit(1).get()
-    if (!existingEmail.empty) return response.status(409).json({ error: 'A customer with this email already exists.' })
-
-    const record = { ...customer, createdAt: FieldValue.serverTimestamp() }
-    const document = await customers.add(record)
-    const saved = await document.get()
-    response.status(201).json({ customer: { id: document.id, ...saved.data() } })
-  } catch (requestError) {
-    next(requestError)
-  }
-})
-
-app.patch('/api/customers/:id', async (request, response, next) => {
-  const { id } = request.params
-  if (!id || id.includes('/')) {
-    return response.status(400).json({ error: 'Provide a valid customer document ID.' })
+    await client.close()
+    throw error
   }
 
-  const { customer: updatedCustomer, error } = validateCustomer(request.body)
-  if (error) return response.status(400).json({ error })
+  app.get('/api/customers', async (request, response, next) => {
+    try {
+      const limit = Math.min(Math.max(Number.parseInt(request.query.limit, 10) || 10, 1), 10)
+      const records = await customers.find().sort({ createdAt: -1 }).limit(limit).toArray()
+      const mappedRecords = records.map(toApiCustomer)
+      response.json({ customers: mappedRecords, count: mappedRecords.length })
+    } catch (error) {
+      next(error)
+    }
+  })
 
-  try {
-    const document = customers.doc(id)
-    const existing = await document.get()
-    if (!existing.exists) {
-      return response.status(404).json({ error: 'Customer not found.' })
+  app.post('/api/customers', async (request, response, next) => {
+    const { customer, error } = validateCustomer(request.body)
+    if (error) return response.status(400).json({ error })
+
+    try {
+      const record = { ...customer, createdAt: new Date() }
+      const result = await customers.insertOne(record)
+      response.status(201).json({ customer: toApiCustomer({ _id: result.insertedId, ...record }) })
+    } catch (requestError) {
+      next(requestError)
+    }
+  })
+
+  app.patch('/api/customers/:id', async (request, response, next) => {
+    const { id } = request.params
+    if (!id || id.includes('/')) {
+      return response.status(400).json({ error: 'Provide a valid customer document ID.' })
     }
 
-    const duplicateEmail = await customers.where('email', '==', updatedCustomer.email).limit(2).get()
-    if (duplicateEmail.docs.some((match) => match.id !== id)) {
+    const { customer: updatedCustomer, error } = validateCustomer(request.body)
+    if (error) return response.status(400).json({ error })
+
+    try {
+      const saved = await customers.findOneAndUpdate(
+        { _id: mongoId(id) },
+        { $set: { ...updatedCustomer, updatedAt: new Date() } },
+        { returnDocument: 'after' },
+      )
+      if (!saved) return response.status(404).json({ error: 'Customer not found.' })
+      response.json({ customer: toApiCustomer(saved) })
+    } catch (updateError) {
+      next(updateError)
+    }
+  })
+
+  app.delete('/api/customers/:id', async (request, response, next) => {
+    const { id } = request.params
+    if (!id || id.includes('/')) {
+      return response.status(400).json({ error: 'Provide a valid customer document ID.' })
+    }
+
+    try {
+      const result = await customers.deleteOne({ _id: mongoId(id) })
+      if (!result.deletedCount) {
+        return response.status(404).json({ error: 'Customer not found.' })
+      }
+      response.json({ message: 'Customer deleted.', id })
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  app.use((error, _request, response, _next) => {
+    if (error.code === 11000) {
       return response.status(409).json({ error: 'A customer with this email already exists.' })
     }
+    console.error('Customer API error:', error.message)
+    response.status(500).json({ error: 'The customer database request failed. Check MongoDB configuration and connectivity.' })
+  })
 
-    await document.update({ ...updatedCustomer, updatedAt: FieldValue.serverTimestamp() })
-    const saved = await document.get()
-    response.json({ customer: { id: saved.id, ...saved.data() } })
-  } catch (updateError) {
-    next(updateError)
-  }
+  app.listen(port, () => console.log(`Customer API listening on port ${port}`))
+}
+
+start().catch(() => {
+  console.error('Unable to start the customer API. Check MONGODB_URI, database access, and network allowlist settings.')
+  process.exitCode = 1
 })
-
-app.delete('/api/customers/:id', async (request, response, next) => {
-  const { id } = request.params
-  if (!id || id.includes('/')) {
-    return response.status(400).json({ error: 'Provide a valid customer document ID.' })
-  }
-
-  try {
-    const customer = customers.doc(id)
-    const document = await customer.get()
-    if (!document.exists) {
-      return response.status(404).json({ error: 'Customer not found.' })
-    }
-
-    await customer.delete()
-    response.json({ message: 'Customer deleted.', id })
-  } catch (error) {
-    next(error)
-  }
-})
-
-app.use((error, _request, response, _next) => {
-  void _next
-  console.error('Customer API error:', error.message)
-  response.status(500).json({ error: 'The customer database request failed. Check API configuration and Firestore permissions.' })
-})
-
-app.listen(port, () => console.log(`Customer API listening on port ${port}`))

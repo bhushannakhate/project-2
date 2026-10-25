@@ -1,11 +1,10 @@
 import 'dotenv/config'
 import process from 'node:process'
-import { applicationDefault, getApps, initializeApp } from 'firebase-admin/app'
-import { FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { MongoClient } from 'mongodb'
 
-const projectId = process.env.FIRESTORE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT
-if (!projectId) throw new Error('Set FIRESTORE_PROJECT_ID before creating demo records.')
-if (!getApps().length) initializeApp({ credential: applicationDefault(), projectId })
+const mongodbUri = process.env.MONGODB_URI
+const databaseName = process.env.MONGODB_DATABASE || 'project2'
+if (!mongodbUri) throw new Error('Set MONGODB_URI before creating demo records.')
 
 const sampleCustomers = [
   ['Avery Morgan', 'avery.morgan@example.test', 'averym', 'Art & illustration', ['watercolor', 'printmaking']],
@@ -20,23 +19,34 @@ const sampleCustomers = [
   ['Sam Wilson', 'sam.wilson@example.test', 'samwilson', 'Travel', ['city guides', 'architecture']],
 ]
 
-const db = getFirestore()
-const batch = db.batch()
-for (const [index, [fullName, email, username, preferredCategory, interests]] of sampleCustomers.entries()) {
-  const reference = db.collection('customers').doc(`demo-${String(index + 1).padStart(3, '0')}`)
-  batch.set(reference, {
-    fullName,
-    email,
-    username,
-    phone: '',
-    bio: 'Fictional sample profile for the Project 2 Firestore demonstration.',
-    interests,
-    preferredCategory,
-    marketingOptIn: false,
-    createdAt: FieldValue.serverTimestamp(),
-    demoRecord: true,
-  }, { merge: true })
-}
+const client = new MongoClient(mongodbUri)
+try {
+  await client.connect()
+  const customers = client.db(databaseName).collection('customers')
+  await customers.createIndex({ email: 1 }, { unique: true })
 
-await batch.commit()
-console.log('Created or refreshed 10 fictional demo records in the customers collection.')
+  for (const [index, [fullName, email, username, preferredCategory, interests]] of sampleCustomers.entries()) {
+    const id = `demo-${String(index + 1).padStart(3, '0')}`
+    await customers.updateOne(
+      { _id: id },
+      {
+        $set: {
+          fullName,
+          email,
+          username,
+          phone: '',
+          bio: 'Fictional sample profile for the Project 2 MongoDB demonstration.',
+          interests,
+          preferredCategory,
+          marketingOptIn: false,
+          demoRecord: true,
+        },
+        $setOnInsert: { createdAt: new Date() },
+      },
+      { upsert: true },
+    )
+  }
+  console.log(`Created or refreshed ${sampleCustomers.length} fictional demo records in the customers collection.`)
+} finally {
+  await client.close()
+}
