@@ -33,6 +33,8 @@ function toApiCustomer({ _id, ...customer }) {
 }
 
 async function start() {
+  app.listen(port, () => console.log(`Customer API listening on port ${port}`))
+
   const client = new MongoClient(mongodbUri)
   let customers
   try {
@@ -115,10 +117,9 @@ async function start() {
     response.status(500).json({ error: 'The customer database request failed. Check MongoDB configuration and connectivity.' })
   })
 
-  app.listen(port, () => console.log(`Customer API listening on port ${port}`))
 }
 
-start().catch(() => {
-  console.error('Unable to start the customer API. Check MONGODB_URI, database access, and network allowlist settings.')
-  process.exitCode = 1
+start().catch((error) => {
+  console.error('Unable to connect the customer API to MongoDB:', error.message)
+  console.error('Check MONGODB_URI, database access, and network allowlist settings.')
 })
