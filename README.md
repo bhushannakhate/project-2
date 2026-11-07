@@ -1,5 +1,9 @@
 # Project 2 — Pinboard Studio Customer API
 
+## Project planning
+
+- [Pinboard Studio execution plan and rubric map](docs/Pinboard-Studio-Execution-Plan.pdf)
+
 Express API backed by MongoDB. The `customers` collection stores customer profiles and the API exposes the newest 10 records for the React customer directory.
 
 ## Deployment
