@@ -44,16 +44,32 @@ test("unknown routes use the standard API error format", async () => {
   });
 });
 
-test("Firestore routes require a Firebase bearer token", async () => {
+test("user and creation routes require a Firebase bearer token", async () => {
   await withServer(createApp({ config }), async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/api/creations`);
-    assert.equal(response.status, 401);
-    assert.deepEqual(await response.json(), {
-      error: {
-        code: "UNAUTHENTICATED",
-        message: "A Firebase bearer token is required.",
-      },
-    });
+    const protectedRequests = [
+      { path: "/api/users/me" },
+      { path: "/api/users/me", method: "PATCH", body: {} },
+      { path: "/api/creations" },
+      { path: "/api/creations", method: "POST", body: {} },
+      { path: "/api/creations/creation-id" },
+      { path: "/api/creations/creation-id", method: "PATCH", body: {} },
+      { path: "/api/creations/creation-id", method: "DELETE" },
+    ];
+
+    for (const { path, method = "GET", body } of protectedRequests) {
+      const response = await fetch(`${baseUrl}${path}`, {
+        method,
+        headers: body ? { "content-type": "application/json" } : {},
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      assert.equal(response.status, 401);
+      assert.deepEqual(await response.json(), {
+        error: {
+          code: "UNAUTHENTICATED",
+          message: "A valid Firebase bearer token is required.",
+        },
+      });
+    }
   });
 });
 

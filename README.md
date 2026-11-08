@@ -51,7 +51,7 @@ Error codes include `VALIDATION_ERROR`, `INVALID_JSON`, `PAYLOAD_TOO_LARGE`, `CO
 
 ## Firestore API
 
-All Firestore endpoints require `Authorization: Bearer <Firebase ID token>`.
+All Firestore endpoints require `Authorization: Bearer <Firebase ID token>`. Firebase Admin verifies the token signature, expiry, issuer, and project audience, and checks whether the token was revoked. Successful authentication exposes the Firebase UID and profile claims to route handlers as `request.user`; invalid, expired, or revoked tokens receive the standard `401 UNAUTHENTICATED` response. Authorization failures use `403` responses in the same error format. Tokens are never included in API logs or error responses.
 
 | Method   | Endpoint                                                   | Purpose                                                    |
 | -------- | ---------------------------------------------------------- | ---------------------------------------------------------- |
