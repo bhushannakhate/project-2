@@ -4,6 +4,33 @@
 
 ## P2-21 Firestore API
 
+## P2-22 Firebase configuration
+
+Run `npm run firebase:check` before starting the API. It verifies the selected developer credential and confirms that the service-account project matches `FIREBASE_PROJECT_ID`.
+
+For local development, place one credential file in `credentials/` and set the matching profile:
+
+```dotenv
+FIREBASE_PROJECT_ID=project-2-pinboard-2026
+FIREBASE_CREDENTIAL_PROFILE=bhushan
+FIREBASE_CREDENTIALS_BHUSHAN=./credentials/bhushannakhate-service-account.json
+```
+
+Or switch to Ryan's account:
+
+```dotenv
+FIREBASE_PROJECT_ID=project-2-pinboard-2026
+FIREBASE_CREDENTIAL_PROFILE=ryan
+FIREBASE_CREDENTIALS_RYAN=./credentials/ryan-service-account.json
+```
+
+For production, mount the selected service-account secret and set only:
+
+```dotenv
+FIREBASE_PROJECT_ID=project-2-pinboard-2026
+GOOGLE_APPLICATION_CREDENTIALS=/var/secrets/firebase/service-account.json
+```
+
 ### Local environment
 
 1. Download the team service-account JSON for the developer whose name you select.
