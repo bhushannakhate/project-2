@@ -53,16 +53,17 @@ export function validateCustomer(input) {
 
   if (
     input.interests !== undefined &&
-    (!Array.isArray(input.interests) || input.interests.length > 20)
+    (!Array.isArray(input.interests) ||
+      input.interests.length > 20 ||
+      input.interests.some((interest) => typeof interest !== "string"))
   ) {
     return {
-      error: "Interests must be a list containing no more than 20 items.",
+      error: "Interests must be a list of no more than 20 text items.",
     };
   }
   customer.interests = (input.interests ?? [])
-    .map((interest) => String(interest).trim())
-    .filter(Boolean)
-    .slice(0, 20);
+    .map((interest) => interest.trim())
+    .filter(Boolean);
   if (customer.interests.some((interest) => interest.length > 50)) {
     return { error: "Each interest must be 50 characters or fewer." };
   }
