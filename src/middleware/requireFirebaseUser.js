@@ -2,27 +2,37 @@ import { getFirebase } from "../config/firebase.js";
 import { asyncHandler } from "./asyncHandler.js";
 import { ApiError } from "./errorHandler.js";
 
-export const requireFirebaseUser = asyncHandler(
-  async (request, _response, next) => {
+const unauthenticated = () =>
+  new ApiError(
+    401,
+    "UNAUTHENTICATED",
+    "A valid Firebase bearer token is required.",
+  );
+
+export function createRequireFirebaseUser(getAuth = () => getFirebase().auth) {
+  return asyncHandler(async (request, _response, next) => {
     const authorization = request.header("authorization");
-    if (!authorization?.startsWith("Bearer ")) {
-      throw new ApiError(
-        401,
-        "UNAUTHENTICATED",
-        "A Firebase bearer token is required.",
-      );
+    const match = /^Bearer\s+(\S+)$/i.exec(authorization || "");
+    if (!match) {
+      throw unauthenticated();
     }
 
-    const { auth } = getFirebase();
+    const auth = getAuth();
     try {
-      request.firebaseUser = await auth.verifyIdToken(authorization.slice(7));
+      const decodedToken = await auth.verifyIdToken(match[1], true);
+      request.firebaseUser = decodedToken;
+      request.user = {
+        uid: decodedToken.uid,
+        email: decodedToken.email,
+        emailVerified: decodedToken.email_verified,
+        name: decodedToken.name,
+        picture: decodedToken.picture,
+      };
     } catch {
-      throw new ApiError(
-        401,
-        "UNAUTHENTICATED",
-        "The Firebase identity token is invalid or expired.",
-      );
+      throw unauthenticated();
     }
     next();
-  },
-);
+  });
+}
+
+export const requireFirebaseUser = createRequireFirebaseUser();
