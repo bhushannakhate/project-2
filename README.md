@@ -11,7 +11,7 @@ Run `npm run firebase:check` before starting the API. It verifies the selected d
 For local development, place one credential file in `credentials/` and set the matching profile:
 
 ```dotenv
-FIREBASE_PROJECT_ID=project-2-pinboard-2026
+FIREBASE_PROJECT_ID=micro-eye-508217-q3
 FIREBASE_CREDENTIAL_PROFILE=bhushan
 FIREBASE_CREDENTIALS_BHUSHAN=./credentials/bhushannakhate-service-account.json
 ```
@@ -19,7 +19,7 @@ FIREBASE_CREDENTIALS_BHUSHAN=./credentials/bhushannakhate-service-account.json
 Or switch to Ryan's account:
 
 ```dotenv
-FIREBASE_PROJECT_ID=project-2-pinboard-2026
+FIREBASE_PROJECT_ID=micro-eye-508217-q3
 FIREBASE_CREDENTIAL_PROFILE=ryan
 FIREBASE_CREDENTIALS_RYAN=./credentials/ryan-service-account.json
 ```
@@ -27,7 +27,7 @@ FIREBASE_CREDENTIALS_RYAN=./credentials/ryan-service-account.json
 For production, mount the selected service-account secret and set only:
 
 ```dotenv
-FIREBASE_PROJECT_ID=project-2-pinboard-2026
+FIREBASE_PROJECT_ID=micro-eye-508217-q3
 GOOGLE_APPLICATION_CREDENTIALS=/var/secrets/firebase/service-account.json
 ```
 
