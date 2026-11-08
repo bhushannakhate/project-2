@@ -2,6 +2,44 @@
 
 [![CI](https://github.com/bhushannakhate/project-2/actions/workflows/ci.yml/badge.svg)](https://github.com/bhushannakhate/project-2/actions/workflows/ci.yml)
 
+## P2-21 Firestore API
+
+### Local environment
+
+1. Download the team service-account JSON for the developer whose name you select.
+2. Place it in `credentials/`, which is ignored by Git.
+3. Copy `.env.example` to `.env`.
+4. Set `FIREBASE_PROJECT_ID` to the shared Firebase project.
+5. Set `FIREBASE_CREDENTIAL_PROFILE` to `bhushan` or `ryan`.
+6. Keep `GOOGLE_APPLICATION_CREDENTIALS` empty for profile-based local credentials, or set it for production.
+
+The supported developer credential paths are:
+
+- Bhushan: `FIREBASE_CREDENTIALS_BHUSHAN=./credentials/bhushannakhate-service-account.json`
+- Ryan: `FIREBASE_CREDENTIALS_RYAN=./credentials/ryan-service-account.json`
+
+Never commit service-account JSON. Production deployments should mount or configure a secret as `GOOGLE_APPLICATION_CREDENTIALS`; use workload identity when the Cloud Run environment supports it.
+
+### Firestore endpoints
+
+All Firestore endpoints require `Authorization: Bearer <Firebase ID token>`.
+
+| Method   | Endpoint                                                   | Purpose                                                                  |
+| -------- | ---------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `GET`    | `/api/users/me`                                            | Get or initialize the authenticated user profile.                        |
+| `PATCH`  | `/api/users/me`                                            | Update allowed profile fields (`displayName`, `photoURL`).               |
+| `GET`    | `/api/creations?limit=20&status=draft&cursor=<creationId>` | List the user's creations with pagination and optional status filtering. |
+| `GET`    | `/api/creations/:creationId`                               | Get one owned creation.                                                  |
+| `POST`   | `/api/creations`                                           | Create a creation with source, instructions, audio, status, or metadata. |
+| `PATCH`  | `/api/creations/:creationId`                               | Update an owned creation.                                                |
+| `DELETE` | `/api/creations/:creationId`                               | Soft-delete an owned creation.                                           |
+
+Deploy Firestore rules and indexes with:
+
+```bash
+firebase deploy --only firestore
+```
+
 ## Project planning
 
 - [Pinboard Studio execution plan and rubric map](docs/Pinboard-Studio-Execution-Plan.pdf)

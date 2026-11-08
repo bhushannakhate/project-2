@@ -4,6 +4,7 @@ import cors from "cors";
 import express from "express";
 import { MongoClient, ObjectId } from "mongodb";
 import { validateCustomer } from "./customerSchema.js";
+import firestoreApi from "./firestoreApi.js";
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
@@ -28,6 +29,7 @@ app.use(
   }),
 );
 app.use(express.json({ limit: "20kb" }));
+app.use("/api", firestoreApi);
 
 if (!mongodbUri) {
   throw new Error("Set MONGODB_URI to connect to the MongoDB database.");
