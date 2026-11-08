@@ -2,7 +2,7 @@ import { FieldValue } from "firebase-admin/firestore";
 
 export const CREATIONS_COLLECTION = "creations";
 
-export function userDocument(firestore, userId) {
+function userDocument(firestore, userId) {
   return firestore.collection("users").doc(userId);
 }
 

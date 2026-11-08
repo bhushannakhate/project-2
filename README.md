@@ -1,77 +1,8 @@
-# Project 2 — Pinboard Studio Customer API
+# Project 2 API
 
 [![CI](https://github.com/bhushannakhate/project-2/actions/workflows/ci.yml/badge.svg)](https://github.com/bhushannakhate/project-2/actions/workflows/ci.yml)
 
-## P2-21 Firestore API
-
-## P2-22 Firebase configuration
-
-Run `npm run firebase:check` before starting the API. It verifies the selected developer credential and confirms that the service-account project matches `FIREBASE_PROJECT_ID`.
-
-For local development, place one credential file in `credentials/` and set the matching profile:
-
-```dotenv
-FIREBASE_PROJECT_ID=micro-eye-508217-q3
-FIREBASE_CREDENTIAL_PROFILE=bhushan
-FIREBASE_CREDENTIALS_BHUSHAN=./credentials/bhushannakhate-service-account.json
-```
-
-Or switch to Ryan's account:
-
-```dotenv
-FIREBASE_PROJECT_ID=micro-eye-508217-q3
-FIREBASE_CREDENTIAL_PROFILE=ryan
-FIREBASE_CREDENTIALS_RYAN=./credentials/ryan-service-account.json
-```
-
-For production, mount the selected service-account secret and set only:
-
-```dotenv
-FIREBASE_PROJECT_ID=micro-eye-508217-q3
-GOOGLE_APPLICATION_CREDENTIALS=/var/secrets/firebase/service-account.json
-```
-
-### Local environment
-
-1. Download the team service-account JSON for the developer whose name you select.
-2. Place it in `credentials/`, which is ignored by Git.
-3. Copy `.env.example` to `.env`.
-4. Set `FIREBASE_PROJECT_ID` to the shared Firebase project.
-5. Set `FIREBASE_CREDENTIAL_PROFILE` to `bhushan` or `ryan`.
-6. Keep `GOOGLE_APPLICATION_CREDENTIALS` empty for profile-based local credentials, or set it for production.
-
-The supported developer credential paths are:
-
-- Bhushan: `FIREBASE_CREDENTIALS_BHUSHAN=./credentials/bhushannakhate-service-account.json`
-- Ryan: `FIREBASE_CREDENTIALS_RYAN=./credentials/ryan-service-account.json`
-
-Never commit service-account JSON. Production deployments should mount or configure a secret as `GOOGLE_APPLICATION_CREDENTIALS`; use workload identity when the Cloud Run environment supports it.
-
-### Firestore endpoints
-
-All Firestore endpoints require `Authorization: Bearer <Firebase ID token>`.
-
-| Method   | Endpoint                                                   | Purpose                                                                  |
-| -------- | ---------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `GET`    | `/api/users/me`                                            | Get or initialize the authenticated user profile.                        |
-| `PATCH`  | `/api/users/me`                                            | Update allowed profile fields (`displayName`, `photoURL`).               |
-| `GET`    | `/api/creations?limit=20&status=draft&cursor=<creationId>` | List the user's creations with pagination and optional status filtering. |
-| `GET`    | `/api/creations/:creationId`                               | Get one owned creation.                                                  |
-| `POST`   | `/api/creations`                                           | Create a creation with source, instructions, audio, status, or metadata. |
-| `PATCH`  | `/api/creations/:creationId`                               | Update an owned creation.                                                |
-| `DELETE` | `/api/creations/:creationId`                               | Soft-delete an owned creation.                                           |
-
-Deploy Firestore rules and indexes with:
-
-```bash
-firebase deploy --only firestore
-```
-
-## Project planning
-
-- [Pinboard Studio execution plan and rubric map](docs/Pinboard-Studio-Execution-Plan.pdf)
-
-Express API backed by MongoDB. The `customers` collection stores customer profiles and the API exposes the newest 10 records for the React customer directory.
+Maintainable Express 5 API for the Pinboard Studio application. The normal server startup does not connect to MongoDB. Firebase/Firestore APIs are mounted under `/api`; the legacy MongoDB customer API is an opt-in demo available only at `/api/demo/customers`.
 
 ## Deployment
 
@@ -80,45 +11,80 @@ Express API backed by MongoDB. The `customers` collection stores customer profil
 - **Region:** `us-central1`
 - **UI:** https://project-1-ui-m5lsuu6ouq-uc.a.run.app
 
-## Customer document fields
+## Project planning
 
-Required: `fullName`, `email`, `username`. Optional: `phone`, `bio`, `interests` (up to 20 strings), `preferredCategory`, and `marketingOptIn`. The API normalizes email, validates input, prevents duplicate email addresses with a unique database index, and adds a server-generated `createdAt` timestamp and MongoDB ID. Passwords are intentionally not stored in this profile collection; use a dedicated identity provider for authentication.
+- [Pinboard Studio execution plan and rubric map](docs/Pinboard-Studio-Execution-Plan.pdf)
 
-## Run locally
+## Requirements and startup
 
-1. Create a MongoDB Atlas cluster (or use a local MongoDB server), create a database user, and allow the API host in the Atlas network access list.
-2. Copy `.env.example` to `.env` (or add these settings to an existing `.env`). Set `MONGODB_URI` to your MongoDB connection string and set `MONGODB_DATABASE` to the database name to use. Keep `.env` private; never commit credentials.
-3. From this directory run `npm install` and `npm run dev`.
-4. In a second terminal, run the Vite app from `../` using `npm run dev`. Visit `/customers`, submit a profile, then see the first 10 records.
+Use Node.js 20 or newer. Copy `.env.example` to `.env`, configure Firebase credentials for the selected profile, then run:
 
-To populate the database with 10 clearly fictional examples, run `npm run seed:demo` once. This explicit command upserts records named `demo-001` through `demo-010`; it never runs automatically. Use only fictional data for screenshots and delete the sample records when no longer needed.
+```sh
+npm install
+npm run dev
+```
 
-The local React dev server proxies `/api` to `http://localhost:4000`. If the browser opens the frontend as `http://127.0.0.1:5173`, include that exact origin in the backend's comma-separated `WEB_ORIGIN` setting as well as `http://localhost:5173`; browsers treat them as different origins. The API also serves `GET /api/health`, `GET /api/customers?limit=10`, `POST /api/customers`, `PATCH /api/customers/:id`, and `DELETE /api/customers/:id`.
+Use `npm start` for normal startup. The API listens on port `4000` by default. `PORT`, `NODE_ENV`, and the comma-separated browser origins in `WEB_ORIGIN` can be customized. Requests without an `Origin` header are allowed for health probes and command-line clients. The server applies Helmet security headers, logs requests, and limits JSON bodies to 20kb.
 
-### API reference
+Run `npm run firebase:check` to verify the selected Firebase project and service-account configuration. Keep service-account files private in the ignored `credentials/` directory; production deployments should provide a mounted credential via `GOOGLE_APPLICATION_CREDENTIALS` or use the hosting platform's workload identity.
 
-Base URL locally: `http://localhost:4000`. Deployed base URL: `https://project-2-api-m5lsuu6ouq-uc.a.run.app`.
+## Health and error responses
 
-| Method   | Endpoint                  | Purpose                                  | Success response                                     |
-| -------- | ------------------------- | ---------------------------------------- | ---------------------------------------------------- |
-| `GET`    | `/api/health`             | Report API availability.                 | `200` — `{"status":"ok"}`                            |
-| `GET`    | `/api/customers?limit=10` | Return up to 10 newest customer records. | `200` — `{"customers":[...],"count":10}`             |
-| `POST`   | `/api/customers`          | Create a customer profile.               | `201` — `{"customer":{...}}`                         |
-| `PATCH`  | `/api/customers/:id`      | Update an existing customer profile.     | `200` — `{"customer":{...}}`                         |
-| `DELETE` | `/api/customers/:id`      | Permanently delete a customer profile.   | `200` — `{"message":"Customer deleted.","id":"..."}` |
+`GET /api/health` returns `200` with:
 
-`POST` and `PATCH` require `fullName`, `email`, and `username`. Optional fields are `phone`, `bio`, `interests`, `preferredCategory`, and `marketingOptIn`. Common errors: `400` invalid input, `404` customer not found, `409` duplicate email, and `500` database failure.
+```json
+{ "status": "ok" }
+```
 
-Example update: `curl -X PATCH http://localhost:4000/api/customers/demo-001 -H 'Content-Type: application/json' -d '{"fullName":"Avery Morgan","email":"avery.morgan@example.test","username":"averym","phone":"","bio":"Updated sample profile","interests":["watercolor"],"preferredCategory":"Art & illustration","marketingOptIn":false}'`. Example deletion: `curl -X DELETE http://localhost:4000/api/customers/demo-001`. Deletion is permanent; verify the ID before sending the request.
+API errors use one response shape:
 
-The `/customers` page provides **Edit** and **Delete** actions for each displayed customer. Editing loads the saved profile into the form; deleting asks for confirmation before permanently removing the record.
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Route not found: GET /api/unknown"
+  }
+}
+```
 
-### View the database
+Error codes include `VALIDATION_ERROR`, `INVALID_JSON`, `PAYLOAD_TOO_LARGE`, `CORS_ORIGIN_DENIED`, `UNAUTHENTICATED`, `NOT_FOUND`, `CONFLICT`, and `INTERNAL_SERVER_ERROR`.
 
-Use MongoDB Atlas Data Explorer (or your local MongoDB client) to inspect the database named by `MONGODB_DATABASE` and its `customers` collection. You can also list documents through the API: `curl http://localhost:4000/api/customers?limit=10`.
+## Firestore API
 
-## Deploy the API
+All Firestore endpoints require `Authorization: Bearer <Firebase ID token>`.
 
-Deploy this directory using the included Dockerfile. Configure `MONGODB_URI`, `MONGODB_DATABASE`, and `WEB_ORIGIN` (the deployed web app's exact origin) in the hosting provider's secret/environment settings. Store the MongoDB connection string as a secret and restrict the database user's privileges to the required database. Set hosting-provider authentication to allow unauthenticated requests only if this public customer demo is intended to be accessible to everyone. The API validates input, but production deployments should additionally apply abuse controls and privacy/retention policies.
+| Method   | Endpoint                                                   | Purpose                                                    |
+| -------- | ---------------------------------------------------------- | ---------------------------------------------------------- |
+| `GET`    | `/api/users/me`                                            | Get or initialize the authenticated user profile.          |
+| `PATCH`  | `/api/users/me`                                            | Update allowed profile fields (`displayName`, `photoURL`). |
+| `GET`    | `/api/creations?limit=20&status=draft&cursor=<creationId>` | List the user's creations.                                 |
+| `GET`    | `/api/creations/:creationId`                               | Get one owned creation.                                    |
+| `POST`   | `/api/creations`                                           | Create a creation.                                         |
+| `PATCH`  | `/api/creations/:creationId`                               | Update an owned creation.                                  |
+| `DELETE` | `/api/creations/:creationId`                               | Soft-delete an owned creation.                             |
 
-Set `VITE_API_BASE_URL` to the deployed API's HTTPS base URL when building the frontend, for example in the static-site build environment. This variable is public configuration, not a secret. Rebuild and redeploy the frontend after changing it.
+Deploy Firestore rules and indexes with `firebase deploy --only firestore`.
+
+## Optional demo customer API
+
+The MongoDB customer API is disabled by default and is not required for normal startup. To enable it, set `DEMO_CUSTOMERS_ENABLED=true`, configure `MONGODB_URI`, optionally set `MONGODB_DATABASE`, and restart the API. Its endpoints are mounted under `/api/demo/customers` (`GET`, `POST`, `PATCH /:id`, and `DELETE /:id`). The explicit `npm run seed:demo` command inserts fictional sample records; seeding never runs during server startup.
+
+## Project structure
+
+- `src/config`: environment, CORS, and Firebase configuration
+- `src/routes`: Firestore and optional demo route declarations
+- `src/controllers`: HTTP request/response handling
+- `src/services`: Firestore and customer operations
+- `src/middleware`: async handling, authentication, validation, not-found, and error responses
+- `src/models`: MongoDB customer ID mapping and demo validation
+- `src/app.js`: Express middleware and route composition
+- `src/server.js`: service initialization and HTTP startup
+- `src/index.js`: importable app entry point
+
+## Development checks
+
+- `npm test` runs the Node.js test suite.
+- `npm run lint` runs ESLint.
+- `npm run format` formats source, tests, scripts, package metadata, and this README.
+- `npm run format:check` checks formatting without changes.
+- `npm run check` runs lint, formatting checks, and tests.
