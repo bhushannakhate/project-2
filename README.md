@@ -1,5 +1,7 @@
 # Project 2 — Pinboard Studio Customer API
 
+[![CI](https://github.com/bhushannakhate/project-2/actions/workflows/ci.yml/badge.svg)](https://github.com/bhushannakhate/project-2/actions/workflows/ci.yml)
+
 ## Project planning
 
 - [Pinboard Studio execution plan and rubric map](docs/Pinboard-Studio-Execution-Plan.pdf)
@@ -32,13 +34,13 @@ The local React dev server proxies `/api` to `http://localhost:4000`. If the bro
 
 Base URL locally: `http://localhost:4000`. Deployed base URL: `https://project-2-api-m5lsuu6ouq-uc.a.run.app`.
 
-| Method | Endpoint | Purpose | Success response |
-|---|---|---|---|
-| `GET` | `/api/health` | Report API availability. | `200` — `{"status":"ok"}` |
-| `GET` | `/api/customers?limit=10` | Return up to 10 newest customer records. | `200` — `{"customers":[...],"count":10}` |
-| `POST` | `/api/customers` | Create a customer profile. | `201` — `{"customer":{...}}` |
-| `PATCH` | `/api/customers/:id` | Update an existing customer profile. | `200` — `{"customer":{...}}` |
-| `DELETE` | `/api/customers/:id` | Permanently delete a customer profile. | `200` — `{"message":"Customer deleted.","id":"..."}` |
+| Method   | Endpoint                  | Purpose                                  | Success response                                     |
+| -------- | ------------------------- | ---------------------------------------- | ---------------------------------------------------- |
+| `GET`    | `/api/health`             | Report API availability.                 | `200` — `{"status":"ok"}`                            |
+| `GET`    | `/api/customers?limit=10` | Return up to 10 newest customer records. | `200` — `{"customers":[...],"count":10}`             |
+| `POST`   | `/api/customers`          | Create a customer profile.               | `201` — `{"customer":{...}}`                         |
+| `PATCH`  | `/api/customers/:id`      | Update an existing customer profile.     | `200` — `{"customer":{...}}`                         |
+| `DELETE` | `/api/customers/:id`      | Permanently delete a customer profile.   | `200` — `{"message":"Customer deleted.","id":"..."}` |
 
 `POST` and `PATCH` require `fullName`, `email`, and `username`. Optional fields are `phone`, `bio`, `interests`, `preferredCategory`, and `marketingOptIn`. Common errors: `400` invalid input, `404` customer not found, `409` duplicate email, and `500` database failure.
 
