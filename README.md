@@ -26,7 +26,7 @@ npm run dev
 
 Use `npm start` for normal startup. The API listens on port `4000` by default. `PORT`, `NODE_ENV`, and the comma-separated browser origins in `WEB_ORIGIN` can be customized. Requests without an `Origin` header are allowed for health probes and command-line clients. The server applies Helmet security headers, logs requests, and limits JSON bodies to 20kb.
 
-Run `npm run firebase:check` to verify the selected Firebase project and service-account configuration. Keep service-account files private in the ignored `credentials/` directory; production deployments should provide a mounted credential via `GOOGLE_APPLICATION_CREDENTIALS` or use the hosting platform's workload identity.
+Run `npm run firebase:check` to verify the selected Firebase project and service-account configuration. The canonical Firebase project is `project-2-pinboard-2026`; keep service-account files private in the ignored `credentials/` directory. Production uses a dedicated Cloud Run service account and workload identity.
 
 ## Health and error responses
 
