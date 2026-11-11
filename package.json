@@ -14,11 +14,12 @@
     "format": "prettier --write \"src/**/*.js\" \"test/**/*.js\" \"scripts/**/*.js\" package.json eslint.config.js README.md",
     "format:check": "prettier --check \"src/**/*.js\" \"test/**/*.js\" \"scripts/**/*.js\" package.json eslint.config.js README.md",
     "test": "node --test",
-    "test:integration": "npx --yes firebase-tools@15.35.0 emulators:exec --only auth,firestore --project demo-project-2 \"node --test test/firestore.integration.test.js\"",
+    "test:integration": "npx --yes firebase-tools@15.35.0 emulators:exec --config firebase.test.json --only auth,firestore,storage --project demo-project-2 \"node --test test/firestore.integration.test.js\"",
     "check": "npm run lint && npm run format:check && npm test",
     "firebase:check": "node scripts/checkFirebaseConfig.js"
   },
   "dependencies": {
+    "@google-cloud/storage": "^8.4.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",

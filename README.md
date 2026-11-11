@@ -53,17 +53,44 @@ Error codes include `VALIDATION_ERROR`, `INVALID_JSON`, `PAYLOAD_TOO_LARGE`, `CO
 
 All Firestore endpoints require `Authorization: Bearer <Firebase ID token>`.
 
-| Method   | Endpoint                                                   | Purpose                                                    |
-| -------- | ---------------------------------------------------------- | ---------------------------------------------------------- |
-| `GET`    | `/api/users/me`                                            | Get or initialize the authenticated user profile.          |
-| `PATCH`  | `/api/users/me`                                            | Update allowed profile fields (`displayName`, `photoURL`). |
-| `GET`    | `/api/creations?limit=20&status=draft&cursor=<creationId>` | List the user's creations.                                 |
-| `GET`    | `/api/creations/:creationId`                               | Get one owned creation.                                    |
-| `POST`   | `/api/creations`                                           | Create a creation.                                         |
-| `PATCH`  | `/api/creations/:creationId`                               | Update an owned creation.                                  |
-| `DELETE` | `/api/creations/:creationId`                               | Soft-delete an owned creation.                             |
+| Method   | Endpoint                                                      | Purpose                                                    |
+| -------- | ------------------------------------------------------------- | ---------------------------------------------------------- |
+| `GET`    | `/api/users/me`                                               | Get or initialize the authenticated user profile.          |
+| `PATCH`  | `/api/users/me`                                               | Update allowed profile fields (`displayName`, `photoURL`). |
+| `GET`    | `/api/creations?limit=20&status=draft&cursor=<creationId>`    | List the user's creations.                                 |
+| `GET`    | `/api/creations/:creationId`                                  | Get one owned creation.                                    |
+| `POST`   | `/api/creations`                                              | Create a creation.                                         |
+| `PATCH`  | `/api/creations/:creationId`                                  | Update an owned creation.                                  |
+| `DELETE` | `/api/creations/:creationId`                                  | Soft-delete an owned creation.                             |
+| `POST`   | `/api/creations/:creationId/media/:mediaKind/uploads`         | Start a short-lived source/output/audio upload.            |
+| `POST`   | `/api/creations/:creationId/media/uploads/:uploadId/complete` | Validate and attach an uploaded file to the creation.      |
+| `GET`    | `/api/creations/:creationId/media/:mediaKind/download-url`    | Get a short-lived URL for owned media.                     |
 
-Creation requests require an absolute HTTP(S) `sourceImageUrl`. Optional fields are `outputImageUrl`, `audioUrl`, `instructions` (up to 2,000 characters), `status` (`draft`, `processing`, `completed`, or `failed`), and JSON-object `metadata` / `pinterest` values (up to 4 KB each). Creation ownership and server-managed fields cannot be supplied by clients. List requests default to 20 results and accept `limit` from 1 to 100, a supported `status`, and the `nextCursor` from the previous response. Deleted creations are hidden from reads and lists.
+Create a creation with `instructions`, `status`, and optional JSON-object `metadata` / `pinterest` values (up to 4 KB each). Existing clients may still provide absolute HTTP(S) `sourceImageUrl`, `outputImageUrl`, or `audioUrl` values during the transition; new media must use the managed upload routes. Creation ownership and server-managed fields cannot be supplied by clients. List requests default to 20 results and accept `limit` from 1 to 100, a supported `status`, and the `nextCursor` from the previous response. Deleted creations are hidden from reads and lists.
+
+Media lifecycle:
+
+1. Request an upload with `mediaKind` set to `sourceImage`, `outputImage`, or `audio` and JSON `{ "contentType": "image/png", "sizeBytes": 12345 }`. Images are limited to 10 MB; audio is limited to 25 MB. The response includes a 10-minute upload URL, method, and required headers.
+2. Upload the raw file bytes directly to that URL using the returned method and headers. Do not send the file to the API server.
+3. Call the completion endpoint with the returned `uploadId`. The API checks the actual object size and content type, moves the file out of staging, then records only its private object path, content type, and size in the creation's Firestore `media` map.
+4. Request a download URL for a specific media kind when needed. It expires after 5 minutes. URLs are bearer links while valid and should not be stored.
+5. Deleting a creation removes its media and pending upload sessions. Failed or abandoned staged objects are automatically deleted by the bucket lifecycle rule after one day; expired Firestore upload sessions use the `expiresAt` TTL policy.
+
+Set `MEDIA_STORAGE_BUCKET` to the dedicated private bucket name. The bucket must have public access prevention and uniform bucket-level access enabled. `config/media-bucket-cors.json` and `config/media-bucket-lifecycle.json` configure direct browser uploads and one-day staging cleanup. The Cloud Run runtime service account needs object-level bucket access and permission to sign URLs. Never make this bucket public.
+
+The bucket policies can be reapplied with:
+
+```sh
+gcloud storage buckets update gs://project-2-pinboard-2026-media \
+  --cors-file=config/media-bucket-cors.json \
+  --lifecycle-file=config/media-bucket-lifecycle.json \
+  --public-access-prevention \
+  --clear-soft-delete
+gcloud firestore fields ttls update expiresAt \
+  --collection-group=mediaUploadSessions \
+  --enable-ttl \
+  --project=project-2-pinboard-2026
+```
 
 Deploy Firestore rules and indexes with `firebase deploy --only firestore`.
 
@@ -76,7 +103,7 @@ The MongoDB customer API is disabled by default and is not required for normal s
 - `src/config`: environment, CORS, and Firebase configuration
 - `src/routes`: Firestore and optional demo route declarations
 - `src/controllers`: HTTP request/response handling
-- `src/services`: Firestore and customer operations
+- `src/services`: Firestore, media storage lifecycle, and customer operations
 - `src/middleware`: async handling, authentication, validation, not-found, and error responses
 - `src/models`: MongoDB customer ID mapping and demo validation
 - `src/app.js`: Express middleware and route composition
@@ -86,7 +113,8 @@ The MongoDB customer API is disabled by default and is not required for normal s
 ## Development checks
 
 - `npm test` runs the Node.js test suite.
-- `npm run test:integration` starts the Firebase Authentication and Firestore emulators and exercises authenticated creation CRUD end to end. It requires Java 21; emulator data is isolated to the `demo-project-2` project and cleaned up after the test.
+- `npm run test:integration` starts the Firebase Authentication, Firestore, and Storage emulators and exercises authenticated creation and media flows end to end. It requires Java 21; emulator data is isolated to the `demo-project-2` project and cleaned up after the test.
+- `firebase.test.json` uses permissive Storage rules solely for local emulator testing; never use that config to deploy. Production media access is restricted by the private Cloud Storage bucket's IAM policy.
 - `npm run lint` runs ESLint.
 - `npm run format` formats source, tests, scripts, package metadata, and this README.
 - `npm run format:check` checks formatting without changes.

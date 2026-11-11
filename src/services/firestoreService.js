@@ -94,6 +94,7 @@ export async function createCreation(firestore, userId, input) {
     .doc();
   await reference.set({
     ...input,
+    media: {},
     userId,
     revisionCount: 0,
     status: input.status || "draft",

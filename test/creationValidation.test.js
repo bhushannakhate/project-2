@@ -5,10 +5,8 @@ import {
   validateCreationListQuery,
 } from "../src/models/creationValidation.js";
 
-test("creation validation requires a source image and accepts supported fields", () => {
-  assert.deepEqual(validateCreation({}), {
-    error: "sourceImageUrl is required.",
-  });
+test("creation validation accepts media-free creations and supported fields", () => {
+  assert.deepEqual(validateCreation({}), { creation: {} });
   assert.deepEqual(
     validateCreation({
       sourceImageUrl: "https://storage.example/image.png",

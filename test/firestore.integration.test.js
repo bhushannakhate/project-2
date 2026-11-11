@@ -4,7 +4,8 @@ import test from "node:test";
 
 const emulatorEnabled = Boolean(
   process.env.FIREBASE_AUTH_EMULATOR_HOST &&
-  process.env.FIRESTORE_EMULATOR_HOST,
+  process.env.FIRESTORE_EMULATOR_HOST &&
+  process.env.FIREBASE_STORAGE_EMULATOR_HOST,
 );
 
 test(
@@ -16,6 +17,7 @@ test(
   async () => {
     process.env.FIREBASE_PROJECT_ID =
       process.env.GCLOUD_PROJECT || "demo-project-2";
+    process.env.MEDIA_STORAGE_BUCKET = `${process.env.GCLOUD_PROJECT || "demo-project-2"}.appspot.com`;
     const [{ createApp }, { getFirebase }] = await Promise.all([
       import("../src/app.js"),
       import("../src/config/firebase.js"),
@@ -26,12 +28,14 @@ test(
       nodeEnv: "test",
       allowedOrigins: ["http://localhost:5173"],
       demoCustomersEnabled: false,
+      firebaseProjectId: process.env.GCLOUD_PROJECT || "demo-project-2",
+      mediaStorageBucket: process.env.MEDIA_STORAGE_BUCKET,
     };
     const server = createApp({ config }).listen(0);
     await once(server, "listening");
     const { port } = server.address();
     const baseUrl = `http://127.0.0.1:${port}`;
-    const { auth, firestore } = getFirebase();
+    const { auth, bucket, firestore } = getFirebase();
     const users = [];
 
     async function createEmulatorUser() {
@@ -100,16 +104,9 @@ test(
       );
       assert.equal(unauthenticatedDelete.status, 401);
 
-      const missingSource = await api(owner, "/api/creations", {
-        method: "POST",
-        body: { instructions: "No image provided." },
-      });
-      assert.equal(missingSource.status, 400);
-
       const createResponse = await api(owner, "/api/creations", {
         method: "POST",
         body: {
-          sourceImageUrl: "https://storage.example/first.png",
           instructions: "Make the background blue.",
           status: "draft",
           metadata: { width: 1200 },
@@ -123,6 +120,73 @@ test(
       assert.equal(first.revisionCount, 0);
       assert.ok(first.createdAt);
       assert.ok(first.updatedAt);
+      assert.deepEqual(first.media, {});
+
+      const uploadResponse = await api(
+        owner,
+        `/api/creations/${first.id}/media/sourceImage/uploads`,
+        {
+          method: "POST",
+          body: { contentType: "image/png", sizeBytes: 8 },
+        },
+      );
+      assert.equal(uploadResponse.status, 201);
+      const { upload } = await uploadResponse.json();
+      assert.equal(upload.method, "POST");
+      const stagedUpload = await fetch(upload.uploadUrl, {
+        method: upload.method,
+        headers: upload.headers,
+        body: Buffer.from("testfile"),
+      });
+      assert.ok(stagedUpload.ok, await stagedUpload.text());
+
+      const completeResponse = await api(
+        owner,
+        `/api/creations/${first.id}/media/uploads/${upload.uploadId}/complete`,
+        { method: "POST" },
+      );
+      assert.equal(completeResponse.status, 200);
+      const { media } = await completeResponse.json();
+      assert.equal(media.contentType, "image/png");
+      assert.equal(media.sizeBytes, 8);
+      assert.match(
+        media.objectPath,
+        new RegExp(
+          `^users/${owner.localId}/creations/${first.id}/sourceImage/`,
+        ),
+      );
+      const mediaReadResponse = await api(owner, `/api/creations/${first.id}`);
+      const { creation: withMedia } = await mediaReadResponse.json();
+      assert.deepEqual(withMedia.media.sourceImage, media);
+
+      const downloadResponse = await api(
+        owner,
+        `/api/creations/${first.id}/media/sourceImage/download-url`,
+      );
+      assert.equal(downloadResponse.status, 200);
+      assert.ok((await downloadResponse.json()).downloadUrl);
+      const unauthorizedMediaRead = await api(
+        otherUser,
+        `/api/creations/${first.id}/media/sourceImage/download-url`,
+      );
+      assert.equal(unauthorizedMediaRead.status, 404);
+
+      const pendingResponse = await api(
+        owner,
+        `/api/creations/${first.id}/media/audio/uploads`,
+        {
+          method: "POST",
+          body: { contentType: "audio/webm", sizeBytes: 8 },
+        },
+      );
+      assert.equal(pendingResponse.status, 201);
+      const { upload: pendingUpload } = await pendingResponse.json();
+      const stagedAudio = await fetch(pendingUpload.uploadUrl, {
+        method: pendingUpload.method,
+        headers: pendingUpload.headers,
+        body: Buffer.from("audio123"),
+      });
+      assert.ok(stagedAudio.ok, await stagedAudio.text());
 
       const readResponse = await api(owner, `/api/creations/${first.id}`);
       assert.equal(readResponse.status, 200);
@@ -237,8 +301,28 @@ test(
         .doc(first.id)
         .get();
       assert.equal(deletedSnapshot.data().isDeleted, true);
+      const [remainingMediaFiles] = await bucket.getFiles({
+        prefix: `users/${owner.localId}/creations/${first.id}/`,
+      });
+      assert.deepEqual(remainingMediaFiles, []);
+      const [remainingStagingFiles] = await bucket.getFiles({
+        prefix: `staging/${owner.localId}/${first.id}/`,
+      });
+      assert.deepEqual(remainingStagingFiles, []);
+      const remainingSessions = await firestore
+        .collection("users")
+        .doc(owner.localId)
+        .collection("mediaUploadSessions")
+        .where("creationId", "==", first.id)
+        .get();
+      assert.equal(remainingSessions.empty, true);
     } finally {
       for (const uid of users) {
+        const sessions = await firestore
+          .collection("users")
+          .doc(uid)
+          .collection("mediaUploadSessions")
+          .get();
         const creations = await firestore
           .collection("users")
           .doc(uid)
@@ -247,6 +331,15 @@ test(
         await Promise.all(
           creations.docs.map((document) => document.ref.delete()),
         );
+        await Promise.all(
+          sessions.docs.map((document) => document.ref.delete()),
+        );
+        for (const prefix of [`users/${uid}/creations/`, `staging/${uid}/`]) {
+          const [files] = await bucket.getFiles({ prefix });
+          await Promise.all(
+            files.map((file) => file.delete({ ignoreNotFound: true })),
+          );
+        }
         await firestore.collection("users").doc(uid).delete();
         await auth.deleteUser(uid);
       }
