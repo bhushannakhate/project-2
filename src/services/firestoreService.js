@@ -2,6 +2,13 @@ import { FieldValue } from "firebase-admin/firestore";
 
 export const CREATIONS_COLLECTION = "creations";
 
+export class InvalidCreationCursorError extends Error {
+  constructor() {
+    super("cursor does not identify a creation owned by this user.");
+    this.name = "InvalidCreationCursorError";
+  }
+}
+
 function userDocument(firestore, userId) {
   return firestore.collection("users").doc(userId);
 }
@@ -46,7 +53,7 @@ export async function listCreations(
     .collection(CREATIONS_COLLECTION)
     .where("isDeleted", "==", false)
     .orderBy("createdAt", "desc")
-    .limit(limit);
+    .limit(limit + 1);
 
   if (status) query = query.where("status", "==", status);
   if (startAfter) {
@@ -54,16 +61,21 @@ export async function listCreations(
       .collection(CREATIONS_COLLECTION)
       .doc(startAfter)
       .get();
-    if (cursorSnapshot.exists) query = query.startAfter(cursorSnapshot);
+    if (!cursorSnapshot.exists) {
+      throw new InvalidCreationCursorError();
+    }
+    query = query.startAfter(cursorSnapshot);
   }
 
   const snapshot = await query.get();
+  const hasMore = snapshot.docs.length > limit;
+  const page = hasMore ? snapshot.docs.slice(0, limit) : snapshot.docs;
   return {
-    creations: snapshot.docs.map((document) => ({
+    creations: page.map((document) => ({
       id: document.id,
       ...document.data(),
     })),
-    nextCursor: snapshot.docs.at(-1)?.id || null,
+    nextCursor: hasMore ? page.at(-1).id : null,
   };
 }
 

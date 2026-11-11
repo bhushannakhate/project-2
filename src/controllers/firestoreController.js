@@ -3,12 +3,13 @@ import {
   deleteCreation,
   getCreation,
   getOrCreateUser,
+  InvalidCreationCursorError,
   listCreations,
   updateCreation,
   updateUser,
 } from "../services/firestoreService.js";
-import { ApiError } from "../middleware/errorHandler.js";
 import { getFirebase } from "../config/firebase.js";
+import { ApiError } from "../middleware/errorHandler.js";
 
 export async function getCurrentUser(request, response) {
   const { firestore } = getFirebase();
@@ -25,18 +26,19 @@ export async function patchCurrentUser(request, response) {
 
 export async function getCreations(request, response) {
   const { firestore } = getFirebase();
-  const limit = Math.min(
-    Math.max(Number.parseInt(request.query.limit, 10) || 20, 1),
-    100,
-  );
-  const result = await listCreations(firestore, request.firebaseUser.uid, {
-    status:
-      typeof request.query.status === "string"
-        ? request.query.status
-        : undefined,
-    limit,
-    startAfter: request.query.cursor,
-  });
+  let result;
+  try {
+    const { cursor, ...query } = request.creationQuery;
+    result = await listCreations(firestore, request.firebaseUser.uid, {
+      ...query,
+      startAfter: cursor,
+    });
+  } catch (error) {
+    if (error instanceof InvalidCreationCursorError) {
+      throw new ApiError(400, "VALIDATION_ERROR", error.message);
+    }
+    throw error;
+  }
   response.json(result);
 }
 
@@ -55,20 +57,10 @@ export async function getOneCreation(request, response) {
 
 export async function postCreation(request, response) {
   const { firestore } = getFirebase();
-  const allowedFields = [
-    "sourceImageUrl",
-    "instructions",
-    "audioUrl",
-    "status",
-    "metadata",
-  ];
-  const input = Object.fromEntries(
-    Object.entries(request.body).filter(([key]) => allowedFields.includes(key)),
-  );
   const snapshot = await createCreation(
     firestore,
     request.firebaseUser.uid,
-    input,
+    request.creation,
   );
   response
     .status(201)
@@ -86,23 +78,11 @@ export async function patchCreation(request, response) {
     throw new ApiError(404, "NOT_FOUND", "Creation not found.");
   }
 
-  const allowedFields = [
-    "sourceImageUrl",
-    "outputImageUrl",
-    "instructions",
-    "audioUrl",
-    "status",
-    "metadata",
-    "pinterest",
-  ];
-  const changes = Object.fromEntries(
-    Object.entries(request.body).filter(([key]) => allowedFields.includes(key)),
-  );
   await updateCreation(
     firestore,
     request.firebaseUser.uid,
     request.params.creationId,
-    changes,
+    request.creation,
   );
   const updated = await getCreation(
     firestore,

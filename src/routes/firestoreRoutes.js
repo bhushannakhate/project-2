@@ -10,6 +10,10 @@ import {
 } from "../controllers/firestoreController.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { requireFirebaseUser } from "../middleware/requireFirebaseUser.js";
+import {
+  validateCreation,
+  validateCreationQuery,
+} from "../middleware/validateCreation.js";
 import { validateBody } from "../middleware/validateBody.js";
 
 const router = Router();
@@ -21,7 +25,12 @@ router.patch(
   validateBody,
   asyncHandler(patchCurrentUser),
 );
-router.get("/creations", requireFirebaseUser, asyncHandler(getCreations));
+router.get(
+  "/creations",
+  requireFirebaseUser,
+  validateCreationQuery,
+  asyncHandler(getCreations),
+);
 router.get(
   "/creations/:creationId",
   requireFirebaseUser,
@@ -31,12 +40,14 @@ router.post(
   "/creations",
   requireFirebaseUser,
   validateBody,
+  validateCreation(),
   asyncHandler(postCreation),
 );
 router.patch(
   "/creations/:creationId",
   requireFirebaseUser,
   validateBody,
+  validateCreation({ partial: true }),
   asyncHandler(patchCreation),
 );
 router.delete(
