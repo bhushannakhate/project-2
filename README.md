@@ -63,6 +63,8 @@ All Firestore endpoints require `Authorization: Bearer <Firebase ID token>`.
 | `PATCH`  | `/api/creations/:creationId`                               | Update an owned creation.                                  |
 | `DELETE` | `/api/creations/:creationId`                               | Soft-delete an owned creation.                             |
 
+Creation requests require an absolute HTTP(S) `sourceImageUrl`. Optional fields are `outputImageUrl`, `audioUrl`, `instructions` (up to 2,000 characters), `status` (`draft`, `processing`, `completed`, or `failed`), and JSON-object `metadata` / `pinterest` values (up to 4 KB each). Creation ownership and server-managed fields cannot be supplied by clients. List requests default to 20 results and accept `limit` from 1 to 100, a supported `status`, and the `nextCursor` from the previous response. Deleted creations are hidden from reads and lists.
+
 Deploy Firestore rules and indexes with `firebase deploy --only firestore`.
 
 ## Optional demo customer API
@@ -84,6 +86,7 @@ The MongoDB customer API is disabled by default and is not required for normal s
 ## Development checks
 
 - `npm test` runs the Node.js test suite.
+- `npm run test:integration` starts the Firebase Authentication and Firestore emulators and exercises authenticated creation CRUD end to end. It requires Java 21; emulator data is isolated to the `demo-project-2` project and cleaned up after the test.
 - `npm run lint` runs ESLint.
 - `npm run format` formats source, tests, scripts, package metadata, and this README.
 - `npm run format:check` checks formatting without changes.
