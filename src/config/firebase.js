@@ -8,6 +8,7 @@ import {
 } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 import { loadConfig } from "./env.js";
 
 function resolveCredential(config) {
@@ -31,6 +32,12 @@ function resolveCredential(config) {
 }
 
 export function getFirebase(config = loadConfig()) {
+  if (!config.mediaStorageBucket) {
+    throw new Error(
+      "Set MEDIA_STORAGE_BUCKET before using authenticated Firebase routes.",
+    );
+  }
+
   if (getApps().length === 0) {
     const credential = config.firebaseAuthEmulatorHost
       ? applicationDefault()
@@ -42,8 +49,16 @@ export function getFirebase(config = loadConfig()) {
       );
     }
 
-    initializeApp({ credential, projectId });
+    initializeApp({
+      credential,
+      projectId,
+      storageBucket: config.mediaStorageBucket,
+    });
   }
 
-  return { auth: getAuth(), firestore: getFirestore() };
+  return {
+    auth: getAuth(),
+    firestore: getFirestore(),
+    bucket: getStorage().bucket(config.mediaStorageBucket),
+  };
 }

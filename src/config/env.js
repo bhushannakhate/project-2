@@ -49,6 +49,7 @@ export function loadConfig(env = process.env) {
     mongodbUri,
     mongodbDatabase: env.MONGODB_DATABASE || "project2",
     firebaseProjectId: env.FIREBASE_PROJECT_ID || "",
+    mediaStorageBucket: env.MEDIA_STORAGE_BUCKET || "",
     firebaseCredentialProfile,
     firebaseCredentialsBhushan: env.FIREBASE_CREDENTIALS_BHUSHAN || "",
     firebaseCredentialsRyan: env.FIREBASE_CREDENTIALS_RYAN || "",

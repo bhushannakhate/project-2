@@ -3,9 +3,12 @@ import {
   getCreations,
   getCurrentUser,
   getOneCreation,
+  getMediaDownloadUrl,
   patchCreation,
   patchCurrentUser,
   postCreation,
+  postCompleteMediaUpload,
+  postMediaUpload,
   removeCreation,
 } from "../controllers/firestoreController.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
@@ -15,6 +18,10 @@ import {
   validateCreationQuery,
 } from "../middleware/validateCreation.js";
 import { validateBody } from "../middleware/validateBody.js";
+import {
+  validateMediaKind,
+  validateMediaUpload,
+} from "../middleware/validateMediaUpload.js";
 
 const router = Router();
 
@@ -54,6 +61,25 @@ router.delete(
   "/creations/:creationId",
   requireFirebaseUser,
   asyncHandler(removeCreation),
+);
+router.post(
+  "/creations/:creationId/media/:mediaKind/uploads",
+  requireFirebaseUser,
+  validateMediaKind,
+  validateBody,
+  validateMediaUpload,
+  asyncHandler(postMediaUpload),
+);
+router.post(
+  "/creations/:creationId/media/uploads/:uploadId/complete",
+  requireFirebaseUser,
+  asyncHandler(postCompleteMediaUpload),
+);
+router.get(
+  "/creations/:creationId/media/:mediaKind/download-url",
+  requireFirebaseUser,
+  validateMediaKind,
+  asyncHandler(getMediaDownloadUrl),
 );
 
 export default router;

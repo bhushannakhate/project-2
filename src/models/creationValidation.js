@@ -45,9 +45,6 @@ export function validateCreation(input, { partial = false } = {}) {
     return { error: `Field "${unexpected}" is not allowed.` };
   }
 
-  if (!partial && !Object.hasOwn(input, "sourceImageUrl")) {
-    return { error: "sourceImageUrl is required." };
-  }
   if (partial && keys.length === 0) {
     return { error: "Provide at least one field to update." };
   }
