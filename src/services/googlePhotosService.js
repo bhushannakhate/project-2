@@ -12,6 +12,7 @@ import {
   completeMediaUpload,
   createMediaUpload,
   discardMediaUpload,
+  stageMediaUploadBuffer,
 } from "./mediaStorageService.js";
 
 export const GOOGLE_PHOTOS_SCOPE =
@@ -787,6 +788,77 @@ async function deleteRemotePickerSession(session, accessToken, fetchImpl) {
   );
 }
 
+function wrapMediaImportFailure(error) {
+  if (error instanceof ApiError) return error;
+  console.error("Google Photos media import storage failure:", error);
+  const detail =
+    process.env.NODE_ENV === "production" ? "" : ` (${error.message})`;
+  const wrapped = new ApiError(
+    502,
+    "MEDIA_IMPORT_FAILED",
+    `The selected photo could not be stored. Please retry the import.${detail}`,
+  );
+  wrapped.cause = error;
+  return wrapped;
+}
+
+async function stageImportedMedia(
+  firestore,
+  bucket,
+  userId,
+  creationId,
+  contentType,
+  imageBytes,
+  fetchImpl,
+) {
+  try {
+    return await stageMediaUploadBuffer(
+      firestore,
+      bucket,
+      userId,
+      creationId,
+      "sourceImage",
+      contentType,
+      imageBytes,
+    );
+  } catch (directUploadError) {
+    let upload;
+    try {
+      upload = await createMediaUpload(
+        firestore,
+        bucket,
+        userId,
+        creationId,
+        "sourceImage",
+        { contentType, sizeBytes: imageBytes.length },
+      );
+      const response = await fetchImpl(upload.uploadUrl, {
+        method: upload.method,
+        headers: upload.headers,
+        body: imageBytes,
+        signal: AbortSignal.timeout(GOOGLE_REQUEST_TIMEOUT_MS),
+      });
+      if (!response.ok) {
+        const responseBody = await response.text().catch(() => "");
+        const detail = responseBody.replace(/\s+/g, " ").trim().slice(0, 240);
+        throw new Error(
+          `Signed media upload failed with status ${response.status}${detail ? `: ${detail}` : "."}`,
+        );
+      }
+      return upload;
+    } catch (signedUploadError) {
+      if (upload?.uploadId) {
+        await discardMediaUpload(firestore, bucket, userId, upload.uploadId);
+      }
+      if (process.env.NODE_ENV !== "production") {
+        signedUploadError.message = `${signedUploadError.message} Direct upload also failed: ${directUploadError.message}`;
+      }
+      signedUploadError.cause = directUploadError;
+      throw signedUploadError;
+    }
+  }
+}
+
 export async function deleteGooglePhotosPickerSession(
   firestore,
   userId,
@@ -926,50 +998,42 @@ export async function importGooglePhotosPickerItem(
       );
     }
 
-    const upload = await createMediaUpload(
-      firestore,
-      bucket,
-      userId,
-      creationId,
-      "sourceImage",
-      { contentType: item.mediaFile.mimeType, sizeBytes: imageBytes.length },
-    );
-    uploadId = upload.uploadId;
-    let stored;
     try {
-      const response = await fetchImpl(upload.uploadUrl, {
-        method: upload.method,
-        headers: upload.headers,
-        body: imageBytes,
-        signal: AbortSignal.timeout(GOOGLE_REQUEST_TIMEOUT_MS),
-      });
-      if (!response.ok) {
-        throw new ApiError(
-          502,
-          "MEDIA_UPLOAD_FAILED",
-          "The selected photo could not be staged for validation. Please retry.",
-        );
-      }
-      stored = await completeMediaUpload(
+      const upload = await stageImportedMedia(
         firestore,
         bucket,
         userId,
         creationId,
-        upload.uploadId,
+        item.mediaFile.mimeType,
+        imageBytes,
+        fetchImpl,
       );
+      uploadId = upload.uploadId;
+      let stored;
+      try {
+        stored = await completeMediaUpload(
+          firestore,
+          bucket,
+          userId,
+          creationId,
+          upload.uploadId,
+        );
+      } catch (error) {
+        await discardMediaUpload(firestore, bucket, userId, upload.uploadId);
+        throw wrapMediaImportFailure(error);
+      }
+      if (!stored) {
+        throw new ApiError(
+          400,
+          "VALIDATION_ERROR",
+          "The selected photo is invalid or no longer available. Choose another photo.",
+        );
+      }
+      importedMedia = stored;
+      uploadId = undefined;
     } catch (error) {
-      await discardMediaUpload(firestore, bucket, userId, upload.uploadId);
-      throw error;
+      throw wrapMediaImportFailure(error);
     }
-    if (!stored) {
-      throw new ApiError(
-        400,
-        "VALIDATION_ERROR",
-        "The selected photo is invalid or no longer available. Choose another photo.",
-      );
-    }
-    importedMedia = stored;
-    uploadId = undefined;
   } catch (error) {
     importError = error;
   }

@@ -28,9 +28,8 @@ function mediaPath(userId, creationId, mediaKind, uploadId) {
   return `users/${userId}/creations/${creationId}/${mediaKind}/${uploadId}`;
 }
 
-export async function createMediaUpload(
+async function createMediaUploadSession(
   firestore,
-  bucket,
   userId,
   creationId,
   mediaKind,
@@ -50,7 +49,28 @@ export async function createMediaUpload(
     createdAt: FieldValue.serverTimestamp(),
   };
 
-  await sessionCollection(firestore, userId).doc(uploadId).set(session);
+  const sessionReference = sessionCollection(firestore, userId).doc(uploadId);
+  await sessionReference.set(session);
+  return { uploadId, expiresAt, stagingPath, sessionReference };
+}
+
+export async function createMediaUpload(
+  firestore,
+  bucket,
+  userId,
+  creationId,
+  mediaKind,
+  uploadDetails,
+) {
+  const { uploadId, expiresAt, stagingPath, sessionReference } =
+    await createMediaUploadSession(
+      firestore,
+      userId,
+      creationId,
+      mediaKind,
+      uploadDetails,
+    );
+  const { contentType } = uploadDetails;
   try {
     const emulatorHost = process.env.STORAGE_EMULATOR_HOST;
     const [signedUrl] = emulatorHost
@@ -71,9 +91,54 @@ export async function createMediaUpload(
       expiresAt: expiresAt.toISOString(),
     };
   } catch (error) {
-    await sessionCollection(firestore, userId).doc(uploadId).delete();
+    await sessionReference.delete();
     throw error;
   }
+}
+
+export async function stageMediaUploadBuffer(
+  firestore,
+  bucket,
+  userId,
+  creationId,
+  mediaKind,
+  contentType,
+  buffer,
+) {
+  const { uploadId, stagingPath, sessionReference } =
+    await createMediaUploadSession(firestore, userId, creationId, mediaKind, {
+      contentType,
+      sizeBytes: buffer.length,
+    });
+  const stagedFile = bucket.file(stagingPath);
+
+  try {
+    await stagedFile.save(buffer, {
+      resumable: false,
+      metadata: {
+        contentType,
+        cacheControl: "private, no-store",
+      },
+    });
+  } catch (error) {
+    const cleanupResults = await Promise.allSettled([
+      stagedFile.delete({ ignoreNotFound: true }),
+      sessionReference.delete(),
+    ]);
+    const cleanupErrors = cleanupResults
+      .filter((result) => result.status === "rejected")
+      .map((result) => result.reason);
+    if (cleanupErrors.length) {
+      throw new AggregateError(
+        [error, ...cleanupErrors],
+        "Media upload staging and cleanup both failed.",
+        { cause: error },
+      );
+    }
+    throw error;
+  }
+
+  return { uploadId };
 }
 
 export async function completeMediaUpload(
