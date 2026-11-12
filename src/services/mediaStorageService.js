@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import {
+  InvalidImageError,
+  normalizeImageBuffer,
+} from "../models/imageValidation.js";
 import { MEDIA_KINDS } from "../models/mediaValidation.js";
 
 const UPLOAD_URL_TTL_MS = 10 * 60 * 1000;
@@ -115,23 +119,55 @@ export async function completeMediaUpload(
     return null;
   }
 
+  let normalizedImage;
+  if (
+    session.mediaKind === "sourceImage" ||
+    session.mediaKind === "outputImage"
+  ) {
+    const [imageBuffer] = await stagedFile.download();
+    try {
+      normalizedImage = await normalizeImageBuffer(
+        imageBuffer,
+        session.contentType,
+      );
+    } catch (error) {
+      if (!(error instanceof InvalidImageError)) throw error;
+      await stagedFile.delete({ ignoreNotFound: true });
+      await sessionReference.delete();
+      return null;
+    }
+  }
+
   const objectPath = mediaPath(userId, creationId, session.mediaKind, uploadId);
   const destination = bucket.file(objectPath);
-  await stagedFile.copy(destination);
-  await destination.setMetadata({
-    contentType: session.contentType,
+  const finalContentType = normalizedImage?.contentType ?? session.contentType;
+  const finalSizeBytes = normalizedImage?.sizeBytes ?? actualSize;
+  const finalMetadata = {
+    contentType: finalContentType,
     cacheControl: "private, no-store",
     metadata: {
       ownerUid: userId,
       creationId,
       mediaKind: session.mediaKind,
     },
-  });
+  };
+  if (normalizedImage) {
+    await destination.save(normalizedImage.buffer, {
+      resumable: false,
+      metadata: finalMetadata,
+    });
+  } else {
+    await stagedFile.copy(destination);
+    await destination.setMetadata(finalMetadata);
+  }
 
   const reference = {
     objectPath,
-    contentType: session.contentType,
-    sizeBytes: actualSize,
+    contentType: finalContentType,
+    sizeBytes: finalSizeBytes,
+    ...(normalizedImage
+      ? { width: normalizedImage.width, height: normalizedImage.height }
+      : {}),
     updatedAt: new Date().toISOString(),
   };
   const creation = creationReference(firestore, userId, creationId);

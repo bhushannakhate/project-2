@@ -72,7 +72,7 @@ Media lifecycle:
 
 1. Request an upload with `mediaKind` set to `sourceImage`, `outputImage`, or `audio` and JSON `{ "contentType": "image/png", "sizeBytes": 12345 }`. Images are limited to 10 MB; audio is limited to 25 MB. The response includes a 10-minute upload URL, method, and required headers.
 2. Upload the raw file bytes directly to that URL using the returned method and headers. Do not send the file to the API server.
-3. Call the completion endpoint with the returned `uploadId`. The API checks the actual object size and content type, moves the file out of staging, then records only its private object path, content type, and size in the creation's Firestore `media` map.
+3. Call the completion endpoint with the returned `uploadId`. The API checks actual object size and content type. Source/output images must decode as JPEG, PNG, or WebP, match the declared content type, contain one frame, and fit within 10 MiB, 10,000 pixels per side, and 40 million total pixels. Images are orientation-corrected and re-encoded to strip embedded metadata before they are stored. A creation has one current source image; a successful replacement removes the previous source object. Firestore records the private object path, content type, size, dimensions, and update time in the creation's `media` map.
 4. Request a download URL for a specific media kind when needed. It expires after 5 minutes. URLs are bearer links while valid and should not be stored.
 5. Deleting a creation removes its media and pending upload sessions. Failed or abandoned staged objects are automatically deleted by the bucket lifecycle rule after one day; expired Firestore upload sessions use the `expiresAt` TTL policy.
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import test from "node:test";
+import sharp from "sharp";
 
 const emulatorEnabled = Boolean(
   process.env.FIREBASE_AUTH_EMULATOR_HOST &&
@@ -122,12 +123,64 @@ test(
       assert.ok(first.updatedAt);
       assert.deepEqual(first.media, {});
 
-      const uploadResponse = await api(
+      const sourceImage = await sharp({
+        create: {
+          width: 4,
+          height: 3,
+          channels: 3,
+          background: "#ad5a4d",
+        },
+      })
+        .png()
+        .toBuffer();
+
+      const invalidUploadResponse = await api(
         owner,
         `/api/creations/${first.id}/media/sourceImage/uploads`,
         {
           method: "POST",
           body: { contentType: "image/png", sizeBytes: 8 },
+        },
+      );
+      const { upload: invalidUpload } = await invalidUploadResponse.json();
+      const invalidStagedUpload = await fetch(invalidUpload.uploadUrl, {
+        method: invalidUpload.method,
+        headers: invalidUpload.headers,
+        body: Buffer.from("testfile"),
+      });
+      assert.ok(invalidStagedUpload.ok, await invalidStagedUpload.text());
+
+      const invalidCompleteResponse = await api(
+        owner,
+        `/api/creations/${first.id}/media/uploads/${invalidUpload.uploadId}/complete`,
+        { method: "POST" },
+      );
+      assert.equal(invalidCompleteResponse.status, 400);
+      assert.equal(
+        (await invalidCompleteResponse.json()).error.code,
+        "VALIDATION_ERROR",
+      );
+      assert.equal(
+        (
+          await firestore
+            .collection("users")
+            .doc(owner.localId)
+            .collection("mediaUploadSessions")
+            .doc(invalidUpload.uploadId)
+            .get()
+        ).exists,
+        false,
+      );
+
+      const uploadResponse = await api(
+        owner,
+        `/api/creations/${first.id}/media/sourceImage/uploads`,
+        {
+          method: "POST",
+          body: {
+            contentType: "image/png",
+            sizeBytes: sourceImage.length,
+          },
         },
       );
       assert.equal(uploadResponse.status, 201);
@@ -136,7 +189,7 @@ test(
       const stagedUpload = await fetch(upload.uploadUrl, {
         method: upload.method,
         headers: upload.headers,
-        body: Buffer.from("testfile"),
+        body: sourceImage,
       });
       assert.ok(stagedUpload.ok, await stagedUpload.text());
 
@@ -148,13 +201,20 @@ test(
       assert.equal(completeResponse.status, 200);
       const { media } = await completeResponse.json();
       assert.equal(media.contentType, "image/png");
-      assert.equal(media.sizeBytes, 8);
+      assert.equal(media.width, 4);
+      assert.equal(media.height, 3);
+      assert.ok(media.sizeBytes > 0);
       assert.match(
         media.objectPath,
         new RegExp(
           `^users/${owner.localId}/creations/${first.id}/sourceImage/`,
         ),
       );
+      const [storedImage] = await bucket.file(media.objectPath).download();
+      const storedImageMetadata = await sharp(storedImage).metadata();
+      assert.equal(storedImageMetadata.width, 4);
+      assert.equal(storedImageMetadata.height, 3);
+      assert.equal(storedImageMetadata.exif, undefined);
       const mediaReadResponse = await api(owner, `/api/creations/${first.id}`);
       const { creation: withMedia } = await mediaReadResponse.json();
       assert.deepEqual(withMedia.media.sourceImage, media);

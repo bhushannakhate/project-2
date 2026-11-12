@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validateMediaUpload } from "../src/models/mediaValidation.js";
+import {
+  IMAGE_FORMATS_BY_CONTENT_TYPE,
+  MAX_IMAGE_BYTES,
+  MAX_IMAGE_DIMENSION,
+  MAX_IMAGE_PIXELS,
+  validateMediaUpload,
+} from "../src/models/mediaValidation.js";
 
 test("media upload validation accepts supported image and audio types", () => {
   assert.deepEqual(
@@ -48,4 +54,15 @@ test("media upload validation rejects unsupported types, sizes, and fields", () 
     ).error,
     /mediaKind/,
   );
+});
+
+test("source image policy is explicit and bounded", () => {
+  assert.deepEqual(IMAGE_FORMATS_BY_CONTENT_TYPE, {
+    "image/jpeg": "jpeg",
+    "image/png": "png",
+    "image/webp": "webp",
+  });
+  assert.equal(MAX_IMAGE_BYTES, 10 * 1024 * 1024);
+  assert.equal(MAX_IMAGE_DIMENSION, 10_000);
+  assert.equal(MAX_IMAGE_PIXELS, 40_000_000);
 });

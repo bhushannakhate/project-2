@@ -1,6 +1,7 @@
 import "dotenv/config";
 
-const DEFAULT_WEB_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173";
+const DEFAULT_WEB_ORIGINS =
+  "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,https://project-2-pinboard-2026.web.app,https://project-2-pinboard-2026.firebaseapp.com";
 
 export function loadConfig(env = process.env) {
   const port = Number(env.PORT || 4000);
