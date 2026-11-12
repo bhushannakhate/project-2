@@ -7,6 +7,7 @@ test("loads defaults without requiring MongoDB for normal startup", () => {
 
   assert.equal(config.port, 4000);
   assert.equal(config.demoCustomersEnabled, false);
+  assert.deepEqual(config.adminEmails, []);
   assert.equal(config.googlePhotosClientId, "");
   assert.equal(config.googlePhotosClientSecret, "");
   assert.deepEqual(config.allowedOrigins, [
@@ -16,6 +17,17 @@ test("loads defaults without requiring MongoDB for normal startup", () => {
     "http://127.0.0.1:5174",
     "https://project-2-pinboard-2026.web.app",
     "https://project-2-pinboard-2026.firebaseapp.com",
+  ]);
+});
+
+test("normalizes the server-side administrator email allowlist", () => {
+  const config = loadConfig({
+    ADMIN_EMAILS: " Admin@example.com, admin@example.com ,",
+  });
+
+  assert.deepEqual(config.adminEmails, [
+    "admin@example.com",
+    "admin@example.com",
   ]);
 });
 

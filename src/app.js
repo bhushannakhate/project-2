@@ -7,6 +7,8 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import { notFound } from "./middleware/notFound.js";
 import { createDemoCustomerRoutes } from "./routes/demoCustomerRoutes.js";
 import { asyncHandler } from "./middleware/asyncHandler.js";
+import { requireFirebaseUser } from "./middleware/requireFirebaseUser.js";
+import { createRequireAdminUser } from "./middleware/requireAdminUser.js";
 import { getGooglePhotosOAuthCallback } from "./controllers/firestoreController.js";
 import firestoreRoutes from "./routes/firestoreRoutes.js";
 
@@ -39,6 +41,8 @@ export function createApp({ config = loadConfig(), customerCollection } = {}) {
   if (config.demoCustomersEnabled) {
     app.use(
       "/api/demo/customers",
+      requireFirebaseUser,
+      createRequireAdminUser(config.adminEmails || []),
       createDemoCustomerRoutes(customerCollection),
     );
   }

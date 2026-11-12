@@ -11,6 +11,7 @@ import {
 import { getFirebase } from "../config/firebase.js";
 import { loadConfig } from "../config/env.js";
 import { ApiError } from "../middleware/errorHandler.js";
+import { isAdminUser } from "../services/adminAccessService.js";
 import {
   completeMediaUpload,
   createMediaDownloadUrl,
@@ -33,7 +34,10 @@ import {
 export async function getCurrentUser(request, response) {
   const { firestore } = getFirebase();
   const snapshot = await getOrCreateUser(firestore, request.firebaseUser);
-  response.json({ user: { id: snapshot.id, ...snapshot.data() } });
+  response.json({
+    user: { id: snapshot.id, ...snapshot.data() },
+    isAdmin: isAdminUser(request.firebaseUser, loadConfig().adminEmails),
+  });
 }
 
 export async function patchCurrentUser(request, response) {
