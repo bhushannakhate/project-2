@@ -42,6 +42,11 @@ export function loadConfig(env = process.env) {
     );
   }
 
+  const adminEmails = (env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+
   return {
     port,
     nodeEnv,
@@ -52,6 +57,7 @@ export function loadConfig(env = process.env) {
     firebaseProjectId: env.FIREBASE_PROJECT_ID || "",
     mediaStorageBucket: env.MEDIA_STORAGE_BUCKET || "",
     firebaseCredentialProfile,
+    adminEmails,
     firebaseCredentialsBhushan: env.FIREBASE_CREDENTIALS_BHUSHAN || "",
     firebaseCredentialsRyan: env.FIREBASE_CREDENTIALS_RYAN || "",
     googleApplicationCredentials: env.GOOGLE_APPLICATION_CREDENTIALS || "",

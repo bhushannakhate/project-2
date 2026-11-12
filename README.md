@@ -126,7 +126,7 @@ Deploy Firestore rules and indexes with `firebase deploy --only firestore`.
 
 ## Optional demo customer API
 
-The MongoDB customer API is disabled by default and is not required for normal startup. To enable it, set `DEMO_CUSTOMERS_ENABLED=true`, configure `MONGODB_URI`, optionally set `MONGODB_DATABASE`, and restart the API. Its endpoints are mounted under `/api/demo/customers` (`GET`, `POST`, `PATCH /:id`, and `DELETE /:id`). The explicit `npm run seed:demo` command inserts fictional sample records; seeding never runs during server startup.
+The MongoDB customer API is disabled by default and is not required for normal startup. To enable it, set `DEMO_CUSTOMERS_ENABLED=true`, configure `MONGODB_URI`, optionally set `MONGODB_DATABASE`, and restart the API. Set the server-only `ADMIN_EMAILS` allowlist to comma-separated Firebase account emails; only allowlisted users with a verified email can read or change customer records. The API checks the verified Firebase ID token on every request; a UI route or client-supplied role is never sufficient. The customer page is shown only when the authenticated profile response confirms administrator access. Its endpoints are mounted under `/api/demo/customers` (`GET`, `POST`, `PATCH /:id`, and `DELETE /:id`). The explicit `npm run seed:demo` command inserts fictional sample records; seeding never runs during server startup.
 
 ## Project structure
 
