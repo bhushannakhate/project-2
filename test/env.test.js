@@ -10,6 +10,10 @@ test("loads defaults without requiring MongoDB for normal startup", () => {
   assert.deepEqual(config.allowedOrigins, [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "https://project-2-pinboard-2026.web.app",
+    "https://project-2-pinboard-2026.firebaseapp.com",
   ]);
 });
 

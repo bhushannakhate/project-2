@@ -1,8 +1,17 @@
 export const MEDIA_KINDS = new Set(["sourceImage", "outputImage", "audio"]);
 
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+export const MAX_IMAGE_DIMENSION = 10_000;
+export const MAX_IMAGE_PIXELS = 40_000_000;
+export const IMAGE_FORMATS_BY_CONTENT_TYPE = {
+  "image/jpeg": "jpeg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
 const CONTENT_TYPES_BY_KIND = {
-  sourceImage: new Set(["image/jpeg", "image/png", "image/webp"]),
-  outputImage: new Set(["image/jpeg", "image/png", "image/webp"]),
+  sourceImage: new Set(Object.keys(IMAGE_FORMATS_BY_CONTENT_TYPE)),
+  outputImage: new Set(Object.keys(IMAGE_FORMATS_BY_CONTENT_TYPE)),
   audio: new Set([
     "audio/mpeg",
     "audio/mp4",
@@ -11,7 +20,6 @@ const CONTENT_TYPES_BY_KIND = {
     "audio/webm",
   ]),
 };
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 
 export function validateMediaUpload(input, mediaKind) {
