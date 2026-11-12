@@ -15,8 +15,10 @@ Browser (Pinboard Studio)
   │    └─ Cloud Run: Express 5 API
   │         ├─ Firebase Admin verifies ID tokens
   │         ├─ Firestore stores profiles, creations, and upload sessions
+  │         ├─ Google Photos Picker API handles explicit photo selection
   │         └─ Google Cloud Storage stores private media objects
-  └─ Media bytes upload directly to a short-lived signed Cloud Storage URL
+  ├─ Direct media bytes upload to a short-lived signed Cloud Storage URL
+  └─ Google Photos imports are downloaded and validated by the API before storage
 ```
 
 The API is the trusted boundary for user-scoped application data. It verifies the Firebase token, derives the UID from that verified token, and scopes Firestore paths to that UID. The API uses the Google Cloud Storage SDK for media. Media bytes are not stored in Firestore; Firestore stores private object references and metadata.
@@ -57,6 +59,7 @@ The API URL and the console links are different: the API serves requests; the Fi
 | Production Cloud Run URL                 | `https://project-2-api-m5lsuu6ouq-uc.a.run.app`                                                                              |
 | Production revision at last verification | `project-2-api-00011-ros`                                                                                                    |
 | Cloud Run runtime identity               | `pinboard-api-runtime@project-2-pinboard-2026.iam.gserviceaccount.com`                                                       |
+| Local development Storage identity       | `pinboard-local-bhushan@project-2-pinboard-2026.iam.gserviceaccount.com`                                                     |
 | Firestore                                | `(default)` database in Native mode                                                                                          |
 | Cloud Storage bucket                     | `gs://project-2-pinboard-2026-media`, regional `US-CENTRAL1`, Standard storage                                               |
 | Bucket security                          | Public access prevention enforced; uniform bucket-level access enabled; soft delete disabled for immediate deletion behavior |
@@ -64,7 +67,7 @@ The API URL and the console links are different: the API serves requests; the Fi
 | Upload-session cleanup                   | Firestore TTL on `mediaUploadSessions.expiresAt` is active                                                                   |
 | Firebase Storage security rules          | Deny client reads/writes. Production media access uses the GCS bucket and short-lived signed URLs instead.                   |
 
-The runtime service account has bucket-scoped `roles/storage.objectAdmin` and `roles/iam.serviceAccountTokenCreator` on itself for signed URL generation. Do not put service-account keys, Firebase ID tokens, signed URLs, or database credentials in this document or source control. Signed URLs are bearer links while valid.
+The runtime service account has bucket-scoped `roles/storage.objectAdmin` and `roles/iam.serviceAccountTokenCreator` on itself for signed URL generation. The local `bhushan` development service account also has bucket-scoped `roles/storage.objectAdmin` so the server-side Google Photos import and local media tests can write staging objects. Grant the equivalent bucket role to any other local profile before using it; do not grant client users direct bucket IAM access. Do not put service-account keys, Firebase ID tokens, signed URLs, or database credentials in this document or source control. Signed URLs are bearer links while valid.
 
 ### Browser-origin configuration note
 
@@ -204,6 +207,34 @@ Direct upload endpoints, where `:mediaKind` is one of the supported kinds:
 | `POST` | `/api/creations/:creationId/media/uploads/:uploadId/complete` | Verify upload and attach its reference to the creation.                                             |
 | `GET`  | `/api/creations/:creationId/media/:mediaKind/download-url`    | Return an ownership-checked signed download URL.                                                    |
 
+### Google Photos Picker import
+
+Google Photos is an explicit, owner-bound import path. The browser never sends a Google media URL directly to Cloud Storage and the API never stores a Google base URL in Firestore.
+
+1. The API starts the OAuth authorization-code flow with PKCE and the narrow Picker scope `photospicker.mediaitems.readonly`.
+2. Encrypted Google OAuth tokens are stored at `users/{uid}/integrations/googlePhotos`; the encryption key is supplied by `GOOGLE_PHOTOS_TOKEN_ENCRYPTION_KEY`.
+3. The API creates a Google Picker session and stores its owner and creation binding at `users/{uid}/googlePhotosSessions/{sessionId}`.
+4. The browser opens the returned Picker URI, then asks the API for the selected item metadata. Only photo items with JPEG, PNG, or WebP MIME types are exposed.
+5. On import, the API verifies the creation and session ownership, confirms the item belongs to the selected Picker session, validates the Google media host, downloads the bytes server-side, and enforces the 10 MiB image limit.
+6. The bytes enter the same staging and `completeMediaUpload` validation pipeline as direct uploads. The image is normalized, attached to `media.sourceImage`, and served later through an ownership-checked signed download URL.
+7. The remote Picker session and local session record are deleted after a successful import or after a handled import failure.
+
+The preferred import path writes the downloaded bytes to the bucket through the Cloud Storage SDK. A signed-upload fallback is retained for environments where direct SDK staging is unavailable. Both paths require the API's service account to have bucket-scoped object-create/read/delete access; a missing `storage.objects.create` permission produces a storage import failure rather than a partial media record.
+
+Google Photos routes:
+
+| Method   | Path                                                                  | Purpose                                                            |
+| -------- | --------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `GET`    | `/api/google-photos/connection`                                       | Read the caller's Google Photos connection status.                 |
+| `POST`   | `/api/google-photos/oauth/authorize`                                  | Start the state- and PKCE-protected OAuth flow.                    |
+| `GET`    | `/api/google-photos/oauth/callback`                                   | Consume the one-use OAuth state and store encrypted tokens.        |
+| `DELETE` | `/api/google-photos/connection`                                       | Revoke Google access and remove encrypted tokens.                  |
+| `POST`   | `/api/creations/:creationId/google-photos/sessions`                   | Create a creation-bound Picker session.                            |
+| `GET`    | `/api/google-photos/sessions/:sessionId`                              | Poll Picker session readiness.                                     |
+| `GET`    | `/api/google-photos/sessions/:sessionId/media-items`                  | List selected photo metadata without exposing temporary base URLs. |
+| `POST`   | `/api/creations/:creationId/google-photos/sessions/:sessionId/import` | Download, validate, store, and attach one selected photo.          |
+| `DELETE` | `/api/google-photos/sessions/:sessionId`                              | Cancel a Picker session and remove its local record.               |
+
 ## 7. API route inventory
 
 All routes below are served from `https://project-2-api-m5lsuu6ouq-uc.a.run.app`. Except for health, they require a Firebase ID token.
@@ -257,6 +288,7 @@ The optional routes are `GET/POST /api/demo/customers`, `PATCH /api/demo/custome
 | Firebase Admin initialization                 | `src/config/firebase.js`              |
 | Firestore profile and creation operations     | `src/services/firestoreService.js`    |
 | Media storage lifecycle                       | `src/services/mediaStorageService.js` |
+| Google Photos OAuth, Picker, and import flow  | `src/services/googlePhotosService.js` |
 | Firestore security rules                      | `firestore.rules`                     |
 | Firestore indexes                             | `firestore.indexes.json`              |
 | Firebase Storage rules (deny-all)             | `storage.rules`                       |

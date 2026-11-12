@@ -393,7 +393,7 @@ test("Picker sessions are owner-bound, pollable, and expose only selected photo 
   );
 });
 
-test("Picker import downloads only selected media and sends bytes through the validated storage finalizer", async () => {
+test("Picker import stages selected media directly and sends bytes through the validated storage finalizer", async () => {
   const firestore = new FakeFirestore();
   const imageBytes = await createPng();
   const uploadHarness = makeStorage();
@@ -452,14 +452,6 @@ test("Picker import downloads only selected media and sends bytes through the va
         headers: { "content-type": "image/png" },
       });
     }
-    if (url.hostname === "storage.example") {
-      const path = decodeURIComponent(url.pathname.slice(1));
-      uploadHarness.objects.set(path, {
-        bytes: Buffer.from(options.body),
-        contentType: options.headers["Content-Type"],
-      });
-      return new Response(null, { status: 200 });
-    }
     throw new Error(`Unexpected request: ${options.method} ${url}`);
   };
 
@@ -483,7 +475,7 @@ test("Picker import downloads only selected media and sends bytes through the va
   );
   assert.equal(
     requests.some(({ url }) => url.includes("storage.example")),
-    true,
+    false,
   );
   assert.equal(
     requests.some(
@@ -552,14 +544,6 @@ test("Picker import rejects corrupt image bytes and removes staged data", async 
     }
     if (url.hostname === "lh3.googleusercontent.com") {
       return new Response("corrupt image", { status: 200 });
-    }
-    if (url.hostname === "storage.example") {
-      const path = decodeURIComponent(url.pathname.slice(1));
-      uploadHarness.objects.set(path, {
-        bytes: Buffer.from(options.body),
-        contentType: options.headers["Content-Type"],
-      });
-      return new Response(null, { status: 200 });
     }
     throw new Error(`Unexpected request: ${options.method} ${url}`);
   };
