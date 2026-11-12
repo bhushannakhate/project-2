@@ -29,7 +29,7 @@ export function errorHandler(error, _request, response, next) {
     status = 413;
     code = "PAYLOAD_TOO_LARGE";
     message = "Request body exceeds the 20kb limit.";
-  } else if (status >= 500) {
+  } else if (status >= 500 && !(error instanceof ApiError)) {
     status = 500;
     code = "INTERNAL_SERVER_ERROR";
     message = "An unexpected error occurred.";

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { once } from "node:events";
 import test from "node:test";
 import { createApp } from "../src/app.js";
+import { ApiError, errorHandler } from "../src/middleware/errorHandler.js";
 
 const config = {
   port: 4000,
@@ -103,6 +104,66 @@ test("disallowed browser origins are rejected", async () => {
         message: "This website origin is not allowed by the API.",
       },
     });
+  });
+});
+
+test("expected service-unavailable errors preserve their safe API response", () => {
+  const response = {
+    headersSent: false,
+    status(status) {
+      this.statusCode = status;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+    },
+  };
+
+  errorHandler(
+    new ApiError(
+      503,
+      "GOOGLE_PHOTOS_NOT_CONFIGURED",
+      "Google Photos is not configured for this service.",
+    ),
+    {},
+    response,
+    assert.fail,
+  );
+
+  assert.equal(response.statusCode, 503);
+  assert.deepEqual(response.body, {
+    error: {
+      code: "GOOGLE_PHOTOS_NOT_CONFIGURED",
+      message: "Google Photos is not configured for this service.",
+    },
+  });
+});
+
+test("unexpected server errors remain redacted", () => {
+  const response = {
+    headersSent: false,
+    status(status) {
+      this.statusCode = status;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+    },
+  };
+
+  errorHandler(
+    new Error("sensitive upstream detail"),
+    {},
+    response,
+    assert.fail,
+  );
+
+  assert.equal(response.statusCode, 500);
+  assert.deepEqual(response.body, {
+    error: {
+      code: "INTERNAL_SERVER_ERROR",
+      message: "An unexpected error occurred.",
+    },
   });
 });
 
