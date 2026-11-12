@@ -56,6 +56,11 @@ export function loadConfig(env = process.env) {
     firebaseCredentialsRyan: env.FIREBASE_CREDENTIALS_RYAN || "",
     googleApplicationCredentials: env.GOOGLE_APPLICATION_CREDENTIALS || "",
     firebaseAuthEmulatorHost: env.FIREBASE_AUTH_EMULATOR_HOST || "",
+    googlePhotosClientId: env.GOOGLE_PHOTOS_CLIENT_ID || "",
+    googlePhotosClientSecret: env.GOOGLE_PHOTOS_CLIENT_SECRET || "",
+    googlePhotosRedirectUri: env.GOOGLE_PHOTOS_REDIRECT_URI || "",
+    googlePhotosTokenEncryptionKey:
+      env.GOOGLE_PHOTOS_TOKEN_ENCRYPTION_KEY || "",
   };
 }
 

@@ -9,6 +9,7 @@ import {
   updateUser,
 } from "../services/firestoreService.js";
 import { getFirebase } from "../config/firebase.js";
+import { loadConfig } from "../config/env.js";
 import { ApiError } from "../middleware/errorHandler.js";
 import {
   completeMediaUpload,
@@ -16,6 +17,18 @@ import {
   createMediaUpload,
   deleteCreationMedia,
 } from "../services/mediaStorageService.js";
+import {
+  completeGooglePhotosAuthorization,
+  createGooglePhotosAuthorization,
+  createGooglePhotosPickerSession,
+  deleteGooglePhotosPickerSession,
+  deleteGooglePhotosPickerSessionsForCreation,
+  disconnectGooglePhotos,
+  getGooglePhotosConnectionStatus,
+  importGooglePhotosPickerItem,
+  listGooglePhotosPickerItems,
+  pollGooglePhotosPickerSession,
+} from "../services/googlePhotosService.js";
 
 export async function getCurrentUser(request, response) {
   const { firestore } = getFirebase();
@@ -108,6 +121,12 @@ export async function removeCreation(request, response) {
   if (!creation) {
     throw new ApiError(404, "NOT_FOUND", "Creation not found.");
   }
+  await deleteGooglePhotosPickerSessionsForCreation(
+    firestore,
+    request.firebaseUser.uid,
+    request.params.creationId,
+    loadConfig(),
+  );
   await deleteCreationMedia(
     firestore,
     bucket,
@@ -185,4 +204,138 @@ export async function getMediaDownloadUrl(request, response) {
     throw new ApiError(404, "NOT_FOUND", "Media not found.");
   }
   response.json(download);
+}
+
+export async function getGooglePhotosStatus(request, response) {
+  const { firestore } = getFirebase();
+  const status = await getGooglePhotosConnectionStatus(
+    firestore,
+    request.firebaseUser.uid,
+    loadConfig(),
+  );
+  response.json(status);
+}
+
+export async function postGooglePhotosAuthorization(request, response) {
+  const { firestore } = getFirebase();
+  const config = loadConfig();
+  const result = await createGooglePhotosAuthorization(
+    firestore,
+    request.firebaseUser.uid,
+    request.get("origin"),
+    config,
+    config.allowedOrigins,
+  );
+  response.json(result);
+}
+
+export async function getGooglePhotosOAuthCallback(request, response) {
+  const { firestore } = getFirebase();
+  const result = await completeGooglePhotosAuthorization(
+    firestore,
+    {
+      code: request.query.code,
+      state: request.query.state,
+      providerError: request.query.error,
+    },
+    loadConfig(),
+  );
+  const redirect = new URL("/", result.origin);
+  redirect.searchParams.set("googlePhotos", result.status);
+  response.setHeader("Cache-Control", "no-store");
+  response.setHeader("Referrer-Policy", "no-referrer");
+  response.redirect(303, redirect.toString());
+}
+
+export async function deleteGooglePhotosConnection(request, response) {
+  const { firestore } = getFirebase();
+  const result = await disconnectGooglePhotos(
+    firestore,
+    request.firebaseUser.uid,
+    loadConfig(),
+  );
+  response.json(result);
+}
+
+export async function postGooglePhotosPickerSession(request, response) {
+  const { firestore } = getFirebase();
+  const userId = request.firebaseUser.uid;
+  const { creationId } = request.params;
+  if (!(await getCreation(firestore, userId, creationId))) {
+    throw new ApiError(404, "NOT_FOUND", "Creation not found.");
+  }
+  const session = await createGooglePhotosPickerSession(
+    firestore,
+    userId,
+    creationId,
+    loadConfig(),
+  );
+  response.status(201).json({ session });
+}
+
+export async function getGooglePhotosPickerSession(request, response) {
+  const { firestore } = getFirebase();
+  const result = await pollGooglePhotosPickerSession(
+    firestore,
+    request.firebaseUser.uid,
+    request.params.sessionId,
+    loadConfig(),
+  );
+  response.json(result);
+}
+
+export async function getGooglePhotosPickerItems(request, response) {
+  const { firestore } = getFirebase();
+  const result = await listGooglePhotosPickerItems(
+    firestore,
+    request.firebaseUser.uid,
+    request.params.sessionId,
+    loadConfig(),
+  );
+  response.json(result);
+}
+
+export async function deleteGooglePhotosPicker(request, response) {
+  const { firestore } = getFirebase();
+  const result = await deleteGooglePhotosPickerSession(
+    firestore,
+    request.firebaseUser.uid,
+    request.params.sessionId,
+    loadConfig(),
+  );
+  response.json(result);
+}
+
+export async function postGooglePhotosImport(request, response) {
+  const unexpected = Object.keys(request.body || {}).find(
+    (key) => key !== "mediaItemId",
+  );
+  if (
+    unexpected ||
+    typeof request.body?.mediaItemId !== "string" ||
+    request.body.mediaItemId.length < 1 ||
+    request.body.mediaItemId.length > 512
+  ) {
+    throw new ApiError(
+      400,
+      "VALIDATION_ERROR",
+      "Provide a selected Google Photos mediaItemId.",
+    );
+  }
+
+  const { bucket, firestore } = getFirebase();
+  const userId = request.firebaseUser.uid;
+  if (!(await getCreation(firestore, userId, request.params.creationId))) {
+    throw new ApiError(404, "NOT_FOUND", "Creation not found.");
+  }
+  const media = await importGooglePhotosPickerItem(
+    firestore,
+    bucket,
+    userId,
+    request.params.creationId,
+    request.params.sessionId,
+    request.body.mediaItemId,
+    loadConfig(),
+  );
+  response.json({ media });
 }

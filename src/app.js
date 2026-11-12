@@ -6,6 +6,8 @@ import { loadConfig } from "./config/env.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { notFound } from "./middleware/notFound.js";
 import { createDemoCustomerRoutes } from "./routes/demoCustomerRoutes.js";
+import { asyncHandler } from "./middleware/asyncHandler.js";
+import { getGooglePhotosOAuthCallback } from "./controllers/firestoreController.js";
 import firestoreRoutes from "./routes/firestoreRoutes.js";
 
 export function createApp({ config = loadConfig(), customerCollection } = {}) {
@@ -18,13 +20,21 @@ export function createApp({ config = loadConfig(), customerCollection } = {}) {
   const app = express();
   app.disable("x-powered-by");
   app.use(helmet());
-  app.use(morgan(config.nodeEnv === "production" ? "combined" : "dev"));
+  app.use(
+    morgan(config.nodeEnv === "production" ? "combined" : "dev", {
+      skip: (request) => request.path === "/api/google-photos/oauth/callback",
+    }),
+  );
   app.use(createCorsMiddleware(config.allowedOrigins));
   app.use(express.json({ limit: "20kb" }));
 
   app.get("/api/health", (_request, response) => {
     response.json({ status: "ok" });
   });
+  app.get(
+    "/api/google-photos/oauth/callback",
+    asyncHandler(getGooglePhotosOAuthCallback),
+  );
   app.use("/api", firestoreRoutes);
   if (config.demoCustomersEnabled) {
     app.use(

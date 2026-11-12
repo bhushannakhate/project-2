@@ -204,6 +204,17 @@ export async function completeMediaUpload(
   return reference;
 }
 
+export async function discardMediaUpload(firestore, bucket, userId, uploadId) {
+  if (!/^[\da-f-]{36}$/i.test(uploadId)) return;
+
+  const sessionReference = sessionCollection(firestore, userId).doc(uploadId);
+  const sessionSnapshot = await sessionReference.get();
+  if (!sessionSnapshot.exists) return;
+  const session = sessionSnapshot.data();
+  await bucket.file(session.stagingPath).delete({ ignoreNotFound: true });
+  await sessionReference.delete();
+}
+
 export async function createMediaDownloadUrl(
   bucket,
   userId,
