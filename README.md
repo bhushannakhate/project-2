@@ -53,29 +53,29 @@ Error codes include `VALIDATION_ERROR`, `INVALID_JSON`, `PAYLOAD_TOO_LARGE`, `CO
 
 All Firestore endpoints require `Authorization: Bearer <Firebase ID token>`.
 
-| Method   | Endpoint                                                              | Purpose                                                    |
-| -------- | --------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `GET`    | `/api/users/me`                                                       | Get or initialize the authenticated user profile.          |
-| `PATCH`  | `/api/users/me`                                                       | Update allowed profile fields (`displayName`, `photoURL`). |
-| `GET`    | `/api/creations?limit=20&status=draft&cursor=<creationId>`            | List the user's creations.                                 |
-| `GET`    | `/api/creations/:creationId`                                          | Get one owned creation.                                    |
-| `POST`   | `/api/creations`                                                      | Create a creation.                                         |
-| `PATCH`  | `/api/creations/:creationId`                                          | Update an owned creation.                                  |
-| `DELETE` | `/api/creations/:creationId`                                          | Soft-delete an owned creation.                             |
-| `POST`   | `/api/creations/:creationId/media/:mediaKind/uploads`                 | Start a short-lived source/output/audio upload.            |
-| `POST`   | `/api/creations/:creationId/media/uploads/:uploadId/complete`         | Validate and attach an uploaded file to the creation.      |
-| `GET`    | `/api/creations/:creationId/media/:mediaKind/download-url`            | Get a short-lived URL for owned media.                     |
-| `GET`    | `/api/google-photos/connection`                                       | Get the current user's Google Photos connection status.    |
-| `POST`   | `/api/google-photos/oauth/authorize`                                  | Start the state- and PKCE-protected Google OAuth flow.     |
-| `GET`    | `/api/google-photos/oauth/callback`                                   | Google OAuth callback; protected by one-use server state.  |
-| `DELETE` | `/api/google-photos/connection`                                       | Revoke and remove the current user's Google Photos tokens. |
-| `POST`   | `/api/creations/:creationId/google-photos/sessions`                   | Create an owner-bound Google Photos Picker session.        |
-| `GET`    | `/api/google-photos/sessions/:sessionId`                              | Poll the owner-bound Picker session.                       |
-| `GET`    | `/api/google-photos/sessions/:sessionId/media-items`                  | List selected photos without exposing temporary base URLs. |
-| `POST`   | `/api/creations/:creationId/google-photos/sessions/:sessionId/import` | Import one selected photo through media validation.        |
-| `DELETE` | `/api/google-photos/sessions/:sessionId`                              | Delete the Picker session and its local session record.    |
+| Method   | Endpoint                                                                                             | Purpose                                                                           |
+| -------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `GET`    | `/api/users/me`                                                                                      | Get or initialize the authenticated user profile.                                 |
+| `PATCH`  | `/api/users/me`                                                                                      | Update allowed profile fields (`displayName`, `photoURL`).                        |
+| `GET`    | `/api/creations?limit=20&status=draft&search=blue&from=2026-01-01&to=2026-12-31&cursor=<creationId>` | List the user's creations with optional search, status, date, and cursor filters. |
+| `GET`    | `/api/creations/:creationId`                                                                         | Get one owned creation.                                                           |
+| `POST`   | `/api/creations`                                                                                     | Create a creation.                                                                |
+| `PATCH`  | `/api/creations/:creationId`                                                                         | Update an owned creation.                                                         |
+| `DELETE` | `/api/creations/:creationId`                                                                         | Soft-delete an owned creation.                                                    |
+| `POST`   | `/api/creations/:creationId/media/:mediaKind/uploads`                                                | Start a short-lived source/output/audio upload.                                   |
+| `POST`   | `/api/creations/:creationId/media/uploads/:uploadId/complete`                                        | Validate and attach an uploaded file to the creation.                             |
+| `GET`    | `/api/creations/:creationId/media/:mediaKind/download-url`                                           | Get a short-lived URL for owned media.                                            |
+| `GET`    | `/api/google-photos/connection`                                                                      | Get the current user's Google Photos connection status.                           |
+| `POST`   | `/api/google-photos/oauth/authorize`                                                                 | Start the state- and PKCE-protected Google OAuth flow.                            |
+| `GET`    | `/api/google-photos/oauth/callback`                                                                  | Google OAuth callback; protected by one-use server state.                         |
+| `DELETE` | `/api/google-photos/connection`                                                                      | Revoke and remove the current user's Google Photos tokens.                        |
+| `POST`   | `/api/creations/:creationId/google-photos/sessions`                                                  | Create an owner-bound Google Photos Picker session.                               |
+| `GET`    | `/api/google-photos/sessions/:sessionId`                                                             | Poll the owner-bound Picker session.                                              |
+| `GET`    | `/api/google-photos/sessions/:sessionId/media-items`                                                 | List selected photos without exposing temporary base URLs.                        |
+| `POST`   | `/api/creations/:creationId/google-photos/sessions/:sessionId/import`                                | Import one selected photo through media validation.                               |
+| `DELETE` | `/api/google-photos/sessions/:sessionId`                                                             | Delete the Picker session and its local session record.                           |
 
-Create a creation with `instructions`, `status`, and optional JSON-object `metadata` / `pinterest` values (up to 4 KB each). Existing clients may still provide absolute HTTP(S) `sourceImageUrl`, `outputImageUrl`, or `audioUrl` values during the transition; new media must use the managed upload routes. Creation ownership and server-managed fields cannot be supplied by clients. List requests default to 20 results and accept `limit` from 1 to 100, a supported `status`, and the `nextCursor` from the previous response. Deleted creations are hidden from reads and lists.
+Create a creation with `instructions`, `status`, and optional JSON-object `metadata` / `pinterest` values (up to 4 KB each). Existing clients may still provide absolute HTTP(S) `sourceImageUrl`, `outputImageUrl`, or `audioUrl` values during the transition; new media must use the managed upload routes. Creation ownership and server-managed fields cannot be supplied by clients. List requests default to 20 results and accept `limit` from 1 to 100, a supported `status`, a case-insensitive `search` term up to 100 characters, inclusive `from`/`to` dates in `YYYY-MM-DD` format, and the `nextCursor` from the previous response. Deleted creations are hidden from reads and lists.
 
 Media lifecycle:
 

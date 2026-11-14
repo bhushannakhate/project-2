@@ -307,6 +307,17 @@ test(
         [second.id],
       );
 
+      const searchedResponse = await api(
+        owner,
+        "/api/creations?search=green%20background&from=2020-01-01&to=2099-12-31",
+      );
+      assert.equal(searchedResponse.status, 200);
+      const searched = await searchedResponse.json();
+      assert.deepEqual(
+        searched.creations.map((item) => item.id),
+        [first.id],
+      );
+
       const invalidQuery = await api(owner, "/api/creations?limit=101");
       assert.equal(invalidQuery.status, 400);
       const invalidStatus = await api(owner, "/api/creations?status=unknown");

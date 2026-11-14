@@ -47,29 +47,85 @@ export function updateUser(firestore, userId, changes) {
 export async function listCreations(
   firestore,
   userId,
-  { status, limit = 20, startAfter },
+  { status, limit = 20, startAfter, search, from, to },
 ) {
   let query = userDocument(firestore, userId)
     .collection(CREATIONS_COLLECTION)
     .where("isDeleted", "==", false)
-    .orderBy("createdAt", "desc")
-    .limit(limit + 1);
+    .orderBy("createdAt", "desc");
 
   if (status) query = query.where("status", "==", status);
+
+  const requiresPostFiltering = Boolean(search || from || to);
+  if (!requiresPostFiltering) {
+    query = query.limit(limit + 1);
+  }
+
   if (startAfter) {
+    if (requiresPostFiltering) {
+      const snapshot = await query.get();
+      const filtered = filterCreations(snapshot.docs, { search, from, to });
+      const cursorIndex = filtered.findIndex(
+        (document) => document.id === startAfter,
+      );
+      if (cursorIndex < 0) throw new InvalidCreationCursorError();
+      return formatCreationPage(filtered.slice(cursorIndex + 1), limit);
+    }
+
     const cursorSnapshot = await userDocument(firestore, userId)
       .collection(CREATIONS_COLLECTION)
       .doc(startAfter)
       .get();
-    if (!cursorSnapshot.exists) {
-      throw new InvalidCreationCursorError();
-    }
+    if (!cursorSnapshot.exists) throw new InvalidCreationCursorError();
     query = query.startAfter(cursorSnapshot);
   }
 
   const snapshot = await query.get();
-  const hasMore = snapshot.docs.length > limit;
-  const page = hasMore ? snapshot.docs.slice(0, limit) : snapshot.docs;
+  const documents = requiresPostFiltering
+    ? filterCreations(snapshot.docs, { search, from, to })
+    : snapshot.docs;
+  return formatCreationPage(documents, limit);
+}
+
+function filterCreations(documents, { search, from, to }) {
+  const searchTerms = search?.toLowerCase().split(/\s+/).filter(Boolean);
+  const fromTime = from ? Date.parse(`${from}T00:00:00.000Z`) : null;
+  const toTime = to ? Date.parse(`${to}T23:59:59.999Z`) : null;
+
+  return documents.filter((document) => {
+    const data = document.data();
+    const creationTime = toMillis(data.createdAt);
+    if (
+      fromTime !== null &&
+      (creationTime === null || creationTime < fromTime)
+    ) {
+      return false;
+    }
+    if (toTime !== null && (creationTime === null || creationTime > toTime)) {
+      return false;
+    }
+    if (!searchTerms?.length) return true;
+
+    const searchableText = [
+      document.id,
+      data.instructions,
+      data.status,
+      data.sourceImageUrl,
+      data.outputImageUrl,
+      data.audioUrl,
+      data.metadata && JSON.stringify(data.metadata),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return searchTerms.every((term) => searchableText.includes(term));
+  });
+}
+
+function formatCreationPage(documents, limit) {
+  const hasMore = documents.length > limit;
+  const page = hasMore ? documents.slice(0, limit) : documents;
   return {
     creations: page.map((document) => ({
       id: document.id,
@@ -77,6 +133,17 @@ export async function listCreations(
     })),
     nextCursor: hasMore ? page.at(-1).id : null,
   };
+}
+
+function toMillis(value) {
+  if (value?.toMillis) return value.toMillis();
+  if (value?.toDate) return value.toDate().getTime();
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 export async function getCreation(firestore, userId, creationId) {

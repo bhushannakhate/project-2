@@ -72,7 +72,31 @@ test("creation list query validates limits, filters, and cursors", () => {
   assert.deepEqual(
     validateCreationListQuery({ limit: "10", status: "draft" }),
     {
-      query: { limit: 10, status: "draft", cursor: undefined },
+      query: {
+        limit: 10,
+        status: "draft",
+        cursor: undefined,
+        search: undefined,
+        from: undefined,
+        to: undefined,
+      },
+    },
+  );
+  assert.deepEqual(
+    validateCreationListQuery({
+      search: "  blue background ",
+      from: "2026-01-01",
+      to: "2026-01-31",
+    }),
+    {
+      query: {
+        limit: 20,
+        status: undefined,
+        cursor: undefined,
+        search: "blue background",
+        from: "2026-01-01",
+        to: "2026-01-31",
+      },
     },
   );
   assert.equal(
@@ -86,6 +110,18 @@ test("creation list query validates limits, filters, and cursors", () => {
   assert.match(
     validateCreationListQuery({ status: "unknown" }).error,
     /status must be one of/,
+  );
+  assert.match(
+    validateCreationListQuery({ search: "x".repeat(101) }).error,
+    /search must be text no longer than 100 characters/,
+  );
+  assert.match(
+    validateCreationListQuery({ from: "2026-02-30" }).error,
+    /from must be a valid date/,
+  );
+  assert.equal(
+    validateCreationListQuery({ from: "2026-03-01", to: "2026-02-28" }).error,
+    "from must be on or before to.",
   );
   assert.equal(
     validateCreationListQuery({ cursor: "bad/id" }).error,

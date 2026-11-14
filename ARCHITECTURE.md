@@ -239,19 +239,19 @@ Google Photos routes:
 
 All routes below are served from `https://project-2-api-m5lsuu6ouq-uc.a.run.app`. Except for health, they require a Firebase ID token.
 
-| Method   | Path                                                          | Purpose                                                      |
-| -------- | ------------------------------------------------------------- | ------------------------------------------------------------ |
-| `GET`    | `/api/health`                                                 | Health probe; no authentication required.                    |
-| `GET`    | `/api/users/me`                                               | Get or initialize the caller's profile.                      |
-| `PATCH`  | `/api/users/me`                                               | Update the caller's `displayName` and/or `photoURL`.         |
-| `GET`    | `/api/creations?limit=&status=&cursor=`                       | List caller's non-deleted creations, paginated.              |
-| `GET`    | `/api/creations/:creationId`                                  | Get one owned, non-deleted creation.                         |
-| `POST`   | `/api/creations`                                              | Create a creation.                                           |
-| `PATCH`  | `/api/creations/:creationId`                                  | Update allowed creation fields.                              |
-| `DELETE` | `/api/creations/:creationId`                                  | Delete associated media and soft-delete the creation record. |
-| `POST`   | `/api/creations/:creationId/media/:mediaKind/uploads`         | Start a direct media upload.                                 |
-| `POST`   | `/api/creations/:creationId/media/uploads/:uploadId/complete` | Finalize a direct upload.                                    |
-| `GET`    | `/api/creations/:creationId/media/:mediaKind/download-url`    | Request short-lived access to owned media.                   |
+| Method   | Path                                                          | Purpose                                                                  |
+| -------- | ------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `GET`    | `/api/health`                                                 | Health probe; no authentication required.                                |
+| `GET`    | `/api/users/me`                                               | Get or initialize the caller's profile.                                  |
+| `PATCH`  | `/api/users/me`                                               | Update the caller's `displayName` and/or `photoURL`.                     |
+| `GET`    | `/api/creations?limit=&status=&search=&from=&to=&cursor=`     | List caller's non-deleted creations with search/date filters, paginated. |
+| `GET`    | `/api/creations/:creationId`                                  | Get one owned, non-deleted creation.                                     |
+| `POST`   | `/api/creations`                                              | Create a creation.                                                       |
+| `PATCH`  | `/api/creations/:creationId`                                  | Update allowed creation fields.                                          |
+| `DELETE` | `/api/creations/:creationId`                                  | Delete associated media and soft-delete the creation record.             |
+| `POST`   | `/api/creations/:creationId/media/:mediaKind/uploads`         | Start a direct media upload.                                             |
+| `POST`   | `/api/creations/:creationId/media/uploads/:uploadId/complete` | Finalize a direct upload.                                                |
+| `GET`    | `/api/creations/:creationId/media/:mediaKind/download-url`    | Request short-lived access to owned media.                               |
 
 ### Optional legacy/demo MongoDB API
 

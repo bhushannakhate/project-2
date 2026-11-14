@@ -16,6 +16,8 @@ const CREATION_FIELDS = new Set([
 const MAX_URL_LENGTH = 2048;
 const MAX_INSTRUCTIONS_LENGTH = 2000;
 const MAX_OBJECT_BYTES = 4096;
+const MAX_SEARCH_LENGTH = 100;
+const DATE_QUERY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -114,7 +116,34 @@ export function validateCreationListQuery(query) {
     return { error: "cursor is invalid." };
   }
 
-  const allowedQueryFields = new Set(["limit", "status", "cursor"]);
+  if (
+    Object.hasOwn(query, "search") &&
+    (typeof query.search !== "string" ||
+      query.search.trim().length > MAX_SEARCH_LENGTH)
+  ) {
+    return {
+      error: `search must be text no longer than ${MAX_SEARCH_LENGTH} characters.`,
+    };
+  }
+
+  for (const field of ["from", "to"]) {
+    if (Object.hasOwn(query, field) && !isValidQueryDate(query[field])) {
+      return { error: `${field} must be a valid date in YYYY-MM-DD format.` };
+    }
+  }
+
+  if (query.from && query.to && query.from.localeCompare(query.to) > 0) {
+    return { error: "from must be on or before to." };
+  }
+
+  const allowedQueryFields = new Set([
+    "limit",
+    "status",
+    "cursor",
+    "search",
+    "from",
+    "to",
+  ]);
   const unexpected = Object.keys(query).find(
     (key) => !allowedQueryFields.has(key),
   );
@@ -127,6 +156,21 @@ export function validateCreationListQuery(query) {
       limit,
       status: query.status,
       cursor: query.cursor,
+      search: query.search?.trim() || undefined,
+      from: query.from,
+      to: query.to,
     },
   };
+}
+
+function isValidQueryDate(value) {
+  if (typeof value !== "string" || !DATE_QUERY_PATTERN.test(value)) {
+    return false;
+  }
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return (
+    date.getUTCFullYear() === Number(value.slice(0, 4)) &&
+    date.getUTCMonth() + 1 === Number(value.slice(5, 7)) &&
+    date.getUTCDate() === Number(value.slice(8, 10))
+  );
 }
