@@ -286,13 +286,14 @@ export async function createMediaDownloadUrl(
   creationId,
   mediaKind,
   creation,
+  ttlMs = DOWNLOAD_URL_TTL_MS,
 ) {
   if (!MEDIA_KINDS.has(mediaKind)) return null;
   const reference = creation.media?.[mediaKind];
   const expectedPrefix = `users/${userId}/creations/${creationId}/${mediaKind}/`;
   if (!reference?.objectPath?.startsWith(expectedPrefix)) return null;
 
-  const expiresAt = new Date(Date.now() + DOWNLOAD_URL_TTL_MS);
+  const expiresAt = new Date(Date.now() + ttlMs);
   const file = bucket.file(reference.objectPath);
   const [exists] = await file.exists();
   if (!exists) return null;

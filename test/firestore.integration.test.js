@@ -231,6 +231,34 @@ test(
       );
       assert.equal(unauthorizedMediaRead.status, 404);
 
+      const ownerWorkflowRequest = await api(
+        owner,
+        `/api/creations/${first.id}/agent-workflows`,
+        {
+          method: "POST",
+          body: { instructions: "Edit my uploaded photo." },
+        },
+      );
+      assert.equal(ownerWorkflowRequest.status, 409);
+
+      const otherCreationResponse = await api(otherUser, "/api/creations", {
+        method: "POST",
+        body: { instructions: "Other user's creation." },
+      });
+      assert.equal(otherCreationResponse.status, 201);
+      const { creation: otherCreation } = await otherCreationResponse.json();
+      for (const [user, creationId] of [
+        [owner, otherCreation.id],
+        [otherUser, first.id],
+      ]) {
+        const crossUserWorkflow = await api(
+          user,
+          `/api/creations/${creationId}/agent-workflows`,
+          { method: "POST", body: { instructions: "Do not cross user scope." } },
+        );
+        assert.equal(crossUserWorkflow.status, 404);
+      }
+
       const pendingResponse = await api(
         owner,
         `/api/creations/${first.id}/media/audio/uploads`,

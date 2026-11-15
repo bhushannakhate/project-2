@@ -67,6 +67,7 @@ export function loadConfig(env = process.env) {
     googlePhotosRedirectUri: env.GOOGLE_PHOTOS_REDIRECT_URI || "",
     googlePhotosTokenEncryptionKey:
       env.GOOGLE_PHOTOS_TOKEN_ENCRYPTION_KEY || "",
+    adkAgentUrl: env.ADK_AGENT_URL || "",
   };
 }
 

@@ -1,6 +1,7 @@
 export const MEDIA_KINDS = new Set(["sourceImage", "outputImage", "audio"]);
 
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+export const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 export const MAX_IMAGE_DIMENSION = 10_000;
 export const MAX_IMAGE_PIXELS = 40_000_000;
 export const IMAGE_FORMATS_BY_CONTENT_TYPE = {
@@ -20,8 +21,6 @@ const CONTENT_TYPES_BY_KIND = {
     "audio/webm",
   ]),
 };
-const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
-
 export function validateMediaUpload(input, mediaKind) {
   if (!MEDIA_KINDS.has(mediaKind)) {
     return { error: "mediaKind must be sourceImage, outputImage, or audio." };

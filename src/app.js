@@ -11,6 +11,7 @@ import { requireFirebaseUser } from "./middleware/requireFirebaseUser.js";
 import { createRequireAdminUser } from "./middleware/requireAdminUser.js";
 import { getGooglePhotosOAuthCallback } from "./controllers/firestoreController.js";
 import firestoreRoutes from "./routes/firestoreRoutes.js";
+import { createAgentWorkflowRoutes } from "./routes/agentWorkflowRoutes.js";
 
 export function createApp({ config = loadConfig(), customerCollection } = {}) {
   if (config.demoCustomersEnabled && !customerCollection) {
@@ -37,6 +38,7 @@ export function createApp({ config = loadConfig(), customerCollection } = {}) {
     "/api/google-photos/oauth/callback",
     asyncHandler(getGooglePhotosOAuthCallback),
   );
+  app.use("/api", createAgentWorkflowRoutes(config));
   app.use("/api", firestoreRoutes);
   if (config.demoCustomersEnabled) {
     app.use(

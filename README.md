@@ -65,6 +65,7 @@ All Firestore endpoints require `Authorization: Bearer <Firebase ID token>`.
 | `POST`   | `/api/creations/:creationId/media/:mediaKind/uploads`                                                | Start a short-lived source/output/audio upload.                                   |
 | `POST`   | `/api/creations/:creationId/media/uploads/:uploadId/complete`                                        | Validate and attach an uploaded file to the creation.                             |
 | `GET`    | `/api/creations/:creationId/media/:mediaKind/download-url`                                           | Get a short-lived URL for owned media.                                            |
+| `POST`   | `/api/creations/:creationId/agent-workflows`                                                         | Run the private ADK workflow using the creation's uploaded image and audio.       |
 | `GET`    | `/api/google-photos/connection`                                                                      | Get the current user's Google Photos connection status.                           |
 | `POST`   | `/api/google-photos/oauth/authorize`                                                                 | Start the state- and PKCE-protected Google OAuth flow.                            |
 | `GET`    | `/api/google-photos/oauth/callback`                                                                  | Google OAuth callback; protected by one-use server state.                         |
@@ -84,6 +85,12 @@ Media lifecycle:
 3. Call the completion endpoint with the returned `uploadId`. The API checks actual object size and content type. Source/output images must decode as JPEG, PNG, or WebP, match the declared content type, contain one frame, and fit within 10 MiB, 10,000 pixels per side, and 40 million total pixels. Images are orientation-corrected and re-encoded to strip embedded metadata before they are stored. A creation has one current source image; a successful replacement removes the previous source object. Firestore records the private object path, content type, size, dimensions, and update time in the creation's `media` map.
 4. Request a download URL for a specific media kind when needed. It expires after 5 minutes. URLs are bearer links while valid and should not be stored.
 5. Deleting a creation removes its media and pending upload sessions. Failed or abandoned staged objects are automatically deleted by the bucket lifecycle rule after one day; expired Firestore upload sessions use the `expiresAt` TTL policy.
+
+The agent workflow requires an owned creation with a validated `sourceImage` and
+user-uploaded `audio` media reference. It accepts only optional `{ "instructions":
+"..." }` text from the browser; IDs, media URLs, review state, and durable writes
+are managed by the authenticated Express backend. See [`agents/README.md`](agents/README.md)
+for local setup, Google Cloud authentication, and private two-project deployment.
 
 Set `MEDIA_STORAGE_BUCKET` to the dedicated private bucket name. The bucket must have public access prevention and uniform bucket-level access enabled. `config/media-bucket-cors.json` and `config/media-bucket-lifecycle.json` configure direct browser uploads and one-day staging cleanup. The Cloud Run runtime service account needs object-level bucket access and permission to sign URLs. Never make this bucket public.
 
@@ -149,3 +156,6 @@ The MongoDB customer API is disabled by default and is not required for normal s
 - `npm run format` formats source, tests, scripts, package metadata, and this README.
 - `npm run format:check` checks formatting without changes.
 - `npm run check` runs lint, formatting checks, and tests.
+
+The private Python Google ADK service, local PowerShell/Bash setup, and two-project
+Cloud Run deployment/IAM instructions are documented in [`agents/README.md`](agents/README.md).
