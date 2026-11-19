@@ -158,9 +158,27 @@ export async function postAgentWorkflow(request, response, config) {
   }
 
   const sourceImage = creation.media?.sourceImage;
-  const audio = creation.media?.audio;
   assertMediaReference(sourceImage, userId, creationId, "sourceImage");
-  assertMediaReference(audio, userId, creationId, "audio");
+  const includeAudio =
+    request.agentIncludeAudio ?? Boolean(creation.media?.audio);
+  const audio = includeAudio ? creation.media?.audio : null;
+  if (audio) {
+    assertMediaReference(audio, userId, creationId, "audio");
+  } else if (includeAudio) {
+    throw new ApiError(
+      409,
+      "MEDIA_REQUIRED",
+      "The selected audio recording is unavailable. Re-upload it or run with written instructions only.",
+    );
+  }
+  const instructions = request.agentInstructions;
+  if (!instructions && !audio) {
+    throw new ApiError(
+      400,
+      "VALIDATION_ERROR",
+      "Enter written instructions or add an audio recording.",
+    );
+  }
 
   const sourceImageDownload = await createMediaDownloadUrl(
     bucket,
@@ -170,24 +188,24 @@ export async function postAgentWorkflow(request, response, config) {
     creation,
     AGENT_MEDIA_URL_TTL_MS,
   );
-  const audioDownload = await createMediaDownloadUrl(
-    bucket,
-    userId,
-    creationId,
-    "audio",
-    creation,
-    AGENT_MEDIA_URL_TTL_MS,
-  );
-  if (!sourceImageDownload || !audioDownload) {
+  const audioDownload = audio
+    ? await createMediaDownloadUrl(
+        bucket,
+        userId,
+        creationId,
+        "audio",
+        creation,
+        AGENT_MEDIA_URL_TTL_MS,
+      )
+    : null;
+  if (!sourceImageDownload || (audio && !audioDownload)) {
     throw new ApiError(
       409,
       "MEDIA_REQUIRED",
       "The uploaded source image or audio recording is unavailable.",
     );
   }
-
   const workflowId = randomUUID();
-  const instructions = request.agentInstructions || creation.instructions || "";
   await updateCreation(firestore, userId, creationId, { status: "processing" });
 
   try {
@@ -199,8 +217,12 @@ export async function postAgentWorkflow(request, response, config) {
       instructions,
       source_image_url: sourceImageDownload.downloadUrl,
       source_image_content_type: sourceImage.contentType,
-      audio_url: audioDownload.downloadUrl,
-      audio_content_type: audio.contentType,
+      ...(audio && audioDownload
+        ? {
+            audio_url: audioDownload.downloadUrl,
+            audio_content_type: audio.contentType,
+          }
+        : {}),
     });
     const output = summarizeAgentResult(responsePayload);
     const media = await saveOutputMedia(

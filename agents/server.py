@@ -16,7 +16,7 @@ from google.oauth2 import id_token
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from starlette.concurrency import run_in_threadpool
 
 if __package__:
@@ -50,8 +50,8 @@ class AgentWorkflowRequest(BaseModel):
     instructions: str = Field(max_length=2000)
     source_image_url: str = Field(min_length=1, max_length=4096)
     source_image_content_type: Literal["image/jpeg", "image/png", "image/webp"]
-    audio_url: str = Field(min_length=1, max_length=4096)
-    audio_content_type: str
+    audio_url: str | None = Field(default=None, min_length=1, max_length=4096)
+    audio_content_type: str | None = None
 
     @field_validator("user_id", "creation_id")
     @classmethod
@@ -71,10 +71,18 @@ class AgentWorkflowRequest(BaseModel):
 
     @field_validator("audio_content_type")
     @classmethod
-    def validate_audio_type(cls, value: str) -> str:
-        if value not in ALLOWED_AUDIO_TYPES:
+    def validate_audio_type(cls, value: str | None) -> str | None:
+        if value is not None and value not in ALLOWED_AUDIO_TYPES:
             raise ValueError("Unsupported audio type.")
         return value
+
+    @model_validator(mode="after")
+    def validate_modalities(self):
+        if bool(self.audio_url) != bool(self.audio_content_type):
+            raise ValueError("Audio URL and content type must be provided together.")
+        if not self.instructions.strip() and not self.audio_url:
+            raise ValueError("Written instructions or audio are required.")
+        return self
 
 
 def _is_loopback_request(request: Request) -> bool:
@@ -228,8 +236,14 @@ async def run_workflow(workflow: AgentWorkflowRequest, request: Request) -> JSON
             "instructions": workflow.instructions,
             "source_image_url": workflow.source_image_url,
             "source_image_content_type": workflow.source_image_content_type,
-            "audio_url": workflow.audio_url,
-            "audio_content_type": workflow.audio_content_type,
+            **(
+                {
+                    "audio_url": workflow.audio_url,
+                    "audio_content_type": workflow.audio_content_type,
+                }
+                if workflow.audio_url
+                else {}
+            ),
         },
     )
 

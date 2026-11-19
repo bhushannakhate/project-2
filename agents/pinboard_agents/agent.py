@@ -15,11 +15,12 @@ MODEL = os.getenv("GEMINI_TEXT_MODEL", "gemini-3.5-flash")
 audio_processing_agent = Agent(
     name="audio_processing_agent",
     model=MODEL,
-    description="Transcribes and summarizes the audio recording uploaded for this creation.",
+    description="Transcribes optional audio instructions uploaded for this creation.",
     instruction=(
-        "Process only the user-uploaded audio provided by the trusted workflow context. "
-        "Call transcribe_user_audio once. Capture the user's spoken editing instructions "
-        "and a concise summary. Do not invent speech or use sample audio."
+        "If the trusted workflow context contains an audio_url, call "
+        "transcribe_user_audio exactly once and capture the spoken editing instructions. "
+        "If no audio_url was provided, do not call the tool and state that audio was "
+        "omitted. Never use sample audio or invent speech."
     ),
     tools=[transcribe_user_audio],
     output_key="audio_agent_summary",
@@ -30,10 +31,11 @@ creative_coordinator = Agent(
     model=MODEL,
     description="Combines typed and transcribed instructions into a focused image-edit brief.",
     instruction=(
-        "Create a concise, faithful visual-editing brief. Combine the user's typed "
-        "instructions ({instructions?}) with the uploaded-audio transcript "
-        "({audio_transcript?}). Preserve the user's intent, do not add unsupported "
-        "details, and do not claim to have generated or saved an image."
+        "Create a concise, faithful visual-editing brief from the available user input. "
+        "Combine typed instructions ({instructions?}) and uploaded-audio transcript "
+        "({audio_transcript?}) when present. Either source may be absent; use the other "
+        "source by itself. Preserve the user's intent, do not add unsupported details, "
+        "and do not claim to have generated or saved an image."
     ),
     output_key="creative_brief",
 )

@@ -36,14 +36,44 @@ test("ADK URL permits local HTTP only on local non-production hosts", () => {
   }
 });
 
-test("agent workflow accepts only user instructions from the browser", () => {
-  const request = { body: { instructions: "Make the background brighter." } };
+test("agent workflow accepts typed instructions without requiring audio", () => {
+  const request = {
+    body: {
+      instructions: "Make the background brighter.",
+      includeAudio: false,
+    },
+  };
   let nextCalled = false;
   validateAgentWorkflow(request, {}, () => {
     nextCalled = true;
   });
   assert.equal(nextCalled, true);
   assert.equal(request.agentInstructions, "Make the background brighter.");
+  assert.equal(request.agentIncludeAudio, false);
+
+  const audioOnlyRequest = {
+    body: { instructions: "", includeAudio: true },
+  };
+  validateAgentWorkflow(audioOnlyRequest, {}, () => {});
+  assert.equal(audioOnlyRequest.agentInstructions, "");
+  assert.equal(audioOnlyRequest.agentIncludeAudio, true);
+
+  const combinedRequest = {
+    body: { instructions: "Brighten the scene.", includeAudio: true },
+  };
+  validateAgentWorkflow(combinedRequest, {}, () => {});
+  assert.equal(combinedRequest.agentInstructions, "Brighten the scene.");
+  assert.equal(combinedRequest.agentIncludeAudio, true);
+
+  let noInputError;
+  validateAgentWorkflow(
+    { body: { instructions: "", includeAudio: false } },
+    {},
+    (value) => {
+      noInputError = value;
+    },
+  );
+  assert.equal(noInputError.status, 400);
 
   let error;
   validateAgentWorkflow(

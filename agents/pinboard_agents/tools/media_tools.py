@@ -92,8 +92,11 @@ async def download_trusted_media(
 
 
 async def transcribe_user_audio(tool_context: ToolContext) -> dict[str, str]:
-    """Transcribe and summarize the audio uploaded for this creation."""
+    """Transcribe the optional audio uploaded for this creation."""
     context = tool_context.state["workflow_context"]
+    if not context.get("audio_url"):
+        return {"transcription": "", "status": "skipped_no_audio"}
+
     audio_bytes = await download_trusted_media(
         context["audio_url"],
         context["user_id"],

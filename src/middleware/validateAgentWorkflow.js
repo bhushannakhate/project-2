@@ -15,7 +15,8 @@ export function validateAgentWorkflow(request, _response, next) {
     return;
   }
 
-  const unexpected = Object.keys(body).find((key) => key !== "instructions");
+  const allowedFields = new Set(["instructions", "includeAudio"]);
+  const unexpected = Object.keys(body).find((key) => !allowedFields.has(key));
   if (unexpected) {
     next(
       new ApiError(
@@ -42,6 +43,27 @@ export function validateAgentWorkflow(request, _response, next) {
     return;
   }
 
+  if (
+    Object.hasOwn(body, "includeAudio") &&
+    typeof body.includeAudio !== "boolean"
+  ) {
+    next(
+      new ApiError(400, "VALIDATION_ERROR", "includeAudio must be a boolean."),
+    );
+    return;
+  }
+
   request.agentInstructions = body.instructions?.trim() || "";
+  request.agentIncludeAudio = body.includeAudio;
+  if (body.includeAudio === false && !request.agentInstructions) {
+    next(
+      new ApiError(
+        400,
+        "VALIDATION_ERROR",
+        "Enter written instructions or add an audio recording.",
+      ),
+    );
+    return;
+  }
   next();
 }

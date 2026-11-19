@@ -2,8 +2,9 @@
 
 This Python 3.11+ service runs the five-agent image workflow and is invoked only by
 the authenticated Express API. Express verifies the Firebase ID token, checks
-creation ownership, creates short-lived signed URLs for that creation's validated
-source image and uploaded audio, and sends those URLs to the private ADK service.
+creation ownership, creates a short-lived signed URL for that creation's validated
+source image and, when selected, a signed URL for its uploaded audio, then sends
+those URLs to the private ADK service.
 ADK validates the object paths against the supplied user and creation IDs, reads
 the media, and returns a reviewed image. Express validates and saves that image
 through the existing Cloud Storage upload-completion and Firestore update flow.
@@ -14,7 +15,9 @@ workflow and would require a separate user action.
 The Python service uses Vertex AI Gemini through Application Default Credentials.
 It does not receive Firebase credentials, Google Photos tokens, or direct Firestore
 or Cloud Storage IAM access. The signed URLs are read-only, scoped to one object,
-expire after 15 minutes, and must never be logged or sent to the frontend.
+expire after 15 minutes, and must never be logged or sent to the frontend. A
+workflow accepts typed instructions, uploaded audio, or both; only the source
+image is always required.
 
 ## Files
 
@@ -32,6 +35,7 @@ expire after 15 minutes, and must never be logged or sent to the frontend.
 | `pinboard_agents/__init__.py`           | Exposes the ADK `root_agent` to the ADK development UI.                                                                            |
 | `tests/test_session_isolation.py`       | Checks separation for two user IDs and two creation IDs.                                                                           |
 | `tests/test_media_url_scope.py`         | Verifies signed media URLs cannot cross user or creation boundaries.                                                               |
+| `tests/test_workflow_inputs.py`         | Verifies text-only, audio-only, combined-input, and empty-input request validation.                                                |
 
 ## Local setup and run
 

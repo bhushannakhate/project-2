@@ -87,10 +87,11 @@ Media lifecycle:
 5. Deleting a creation removes its media and pending upload sessions. Failed or abandoned staged objects are automatically deleted by the bucket lifecycle rule after one day; expired Firestore upload sessions use the `expiresAt` TTL policy.
 
 The agent workflow requires an owned creation with a validated `sourceImage` and
-user-uploaded `audio` media reference. It accepts only optional `{ "instructions":
-"..." }` text from the browser; IDs, media URLs, review state, and durable writes
-are managed by the authenticated Express backend. See [`agents/README.md`](agents/README.md)
-for local setup, Google Cloud authentication, and private two-project deployment.
+either written instructions, user-uploaded `audio`, or both. Audio is optional.
+The browser may send only instructions and whether to include the uploaded audio;
+IDs, media URLs, review state, and durable writes are managed by the authenticated
+Express backend. See [`agents/README.md`](agents/README.md) for local setup, Google
+Cloud authentication, and private two-project deployment.
 
 Set `MEDIA_STORAGE_BUCKET` to the dedicated private bucket name. The bucket must have public access prevention and uniform bucket-level access enabled. `config/media-bucket-cors.json` and `config/media-bucket-lifecycle.json` configure direct browser uploads and one-day staging cleanup. The Cloud Run runtime service account needs object-level bucket access and permission to sign URLs. Never make this bucket public.
 
