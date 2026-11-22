@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="BackgroundAgentGlobalSettings">
+    <option name="selectedModelId" value="ensemble" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="bcf41ccb-9264-4751-bed4-1c6ab1ca293c" name="Changes" comment="General Agent tuning, fixed a bug where agents would only take audio instructions instead of text instructions.">
+      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/agents/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/agents/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/agents/pinboard_agents/tools/gemini_tools.py" beforeDir="false" afterPath="$PROJECT_DIR$/agents/pinboard_agents/tools/gemini_tools.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/agents/pinboard_agents/tools/media_tools.py" beforeDir="false" afterPath="$PROJECT_DIR$/agents/pinboard_agents/tools/media_tools.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/agents/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/agents/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/agents/server.py" beforeDir="false" afterPath="$PROJECT_DIR$/agents/server.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/config/env.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/config/env.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/controllers/agentWorkflowController.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/controllers/agentWorkflowController.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/services/adkAgentService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/adkAgentService.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/services/adminAccessService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/adminAccessService.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test/adminAccess.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/test/adminAccess.test.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test/agentWorkflow.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/test/agentWorkflow.test.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test/env.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/test/env.test.js" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="CopilotPersistence">
+    <persistenceIdMap>
+      <entry key="_C:/Users/ironl/WebstormProjects/project-2mongo" value="3LnQ9n5ZHbbnM6UlBFANYBcPoHM" />
+    </persistenceIdMap>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="main" />
+      </map>
+    </option>
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;RyanTorrs&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/bhushannakhate/project-2.git&quot;,
+    &quot;accountId&quot;: &quot;42451c08-b924-4e6e-8545-c094dc64818d&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 2,
+  &quot;fromUser&quot;: false
+}</component>
+  <component name="ProjectId" id="3LlE4xuHd4ZYwpDjNXngMRpOMoh" />
+  <component name="ProjectSessionTemplates">
+    <option name="panelTemplate">
+      <template>
+        <option name="ensembleEnabled" value="true" />
+        <option name="ensembleTierId" value="balance" />
+        <option name="modeId" value="Agent" />
+        <option name="model">
+          <model>
+            <option name="modelType" value="builtin_id" />
+            <option name="modelValue" value="ensemble" />
+          </model>
+        </option>
+        <option name="targetType" value="BACKGROUND" />
+        <option name="worktreeMode" value="WORKSPACE" />
+      </template>
+    </option>
+    <option name="version" value="1" />
+  </component>
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
+    &quot;copilot.chat.legacySessionMetadata.migrated&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;feature/GoogleADKSetupReal&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.jshint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.jshint&quot;: &quot;&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;
+  }
+}</component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-4abd2a77f808-JavaScript-WS-262.10968.77" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="bcf41ccb-9264-4751-bed4-1c6ab1ca293c" name="Changes" comment="" />
+      <created>1794020066337</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1794020066337</updated>
+      <workItem from="1794020067338" duration="109000" />
+      <workItem from="1794021973148" duration="1790000" />
+      <workItem from="1794086965862" duration="213000" />
+      <workItem from="1794087198242" duration="1739000" />
+      <workItem from="1794103202794" duration="1844000" />
+      <workItem from="1794160730223" duration="4121000" />
+      <workItem from="1794262688314" duration="1274000" />
+      <workItem from="1794265386937" duration="6000" />
+      <workItem from="1794266916825" duration="29000" />
+      <workItem from="1794267461194" duration="286000" />
+      <workItem from="1794274416981" duration="44000" />
+      <workItem from="1794606131335" duration="36000" />
+      <workItem from="1794606203677" duration="380000" />
+      <workItem from="1794674815057" duration="230000" />
+      <workItem from="1794690878529" duration="14107000" />
+      <workItem from="1794868753814" duration="48000" />
+      <workItem from="1794868815244" duration="3829000" />
+      <workItem from="1794879672973" duration="1234000" />
+      <workItem from="1794934696495" duration="824000" />
+      <workItem from="1794936425926" duration="2272000" />
+      <workItem from="1795109531276" duration="1192000" />
+      <workItem from="1795112666633" duration="1777000" />
+      <workItem from="1795309762753" duration="2428000" />
+      <workItem from="1795312292600" duration="1428000" />
+    </task>
+    <task id="LOCAL-00001" summary="General Agent tuning, fixed a bug where agents would only take audio instructions instead of text instructions.">
+      <option name="closed" value="true" />
+      <created>1795114348028</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1795114348028</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="UnknownFeatures">
+    <option featureType="com.intellij.fileTypeFactory" implementationName=".env" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="General Agent tuning, fixed a bug where agents would only take audio instructions instead of text instructions." />
+    <option name="LAST_COMMIT_MESSAGE" value="General Agent tuning, fixed a bug where agents would only take audio instructions instead of text instructions." />
+  </component>
+</project>
