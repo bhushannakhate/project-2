@@ -7,24 +7,7 @@
     <option name="selectedModelId" value="ensemble" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="bcf41ccb-9264-4751-bed4-1c6ab1ca293c" name="Changes" comment="General Agent tuning, fixed a bug where agents would only take audio instructions instead of text instructions.">
-      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/agents/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/agents/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/agents/pinboard_agents/tools/gemini_tools.py" beforeDir="false" afterPath="$PROJECT_DIR$/agents/pinboard_agents/tools/gemini_tools.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/agents/pinboard_agents/tools/media_tools.py" beforeDir="false" afterPath="$PROJECT_DIR$/agents/pinboard_agents/tools/media_tools.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/agents/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/agents/requirements.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/agents/server.py" beforeDir="false" afterPath="$PROJECT_DIR$/agents/server.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config/env.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/config/env.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/controllers/agentWorkflowController.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/controllers/agentWorkflowController.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/adkAgentService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/adkAgentService.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/adminAccessService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/adminAccessService.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test/adminAccess.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/test/adminAccess.test.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test/agentWorkflow.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/test/agentWorkflow.test.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test/env.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/test/env.test.js" afterDir="false" />
-    </list>
+    <list default="true" id="bcf41ccb-9264-4751-bed4-1c6ab1ca293c" name="Changes" comment="General Agent tuning, fixed a bug where agents would only take audio instructions instead of text instructions." />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -140,7 +123,7 @@
       <workItem from="1795109531276" duration="1192000" />
       <workItem from="1795112666633" duration="1777000" />
       <workItem from="1795309762753" duration="2428000" />
-      <workItem from="1795312292600" duration="1428000" />
+      <workItem from="1795312292600" duration="1849000" />
     </task>
     <task id="LOCAL-00001" summary="General Agent tuning, fixed a bug where agents would only take audio instructions instead of text instructions.">
       <option name="closed" value="true" />
@@ -150,7 +133,23 @@
       <option name="project" value="LOCAL" />
       <updated>1795114348028</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="General Agent tuning, fixed a bug where agents would only take audio instructions instead of text instructions.">
+      <option name="closed" value="true" />
+      <created>1795313733437</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1795313733437</updated>
+    </task>
+    <task id="LOCAL-00003" summary="General Agent tuning, fixed a bug where agents would only take audio instructions instead of text instructions.">
+      <option name="closed" value="true" />
+      <created>1795313907799</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1795313907799</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
