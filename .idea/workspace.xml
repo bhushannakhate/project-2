@@ -7,7 +7,7 @@
     <option name="selectedModelId" value="ensemble" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="bcf41ccb-9264-4751-bed4-1c6ab1ca293c" name="Changes" comment="Removed and and ALL instances of MongoDB development from a previous lab/exercise." />
+    <list default="true" id="bcf41ccb-9264-4751-bed4-1c6ab1ca293c" name="Changes" comment="General debugging and firebase error correction" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -123,7 +123,7 @@
       <workItem from="1795109531276" duration="1192000" />
       <workItem from="1795112666633" duration="1777000" />
       <workItem from="1795309762753" duration="2428000" />
-      <workItem from="1795312292600" duration="4675000" />
+      <workItem from="1795312292600" duration="5373000" />
     </task>
     <task id="LOCAL-00001" summary="General Agent tuning, fixed a bug where agents would only take audio instructions instead of text instructions.">
       <option name="closed" value="true" />
@@ -173,7 +173,15 @@
       <option name="project" value="LOCAL" />
       <updated>1795318766163</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="General debugging and firebase error correction">
+      <option name="closed" value="true" />
+      <created>1795319475323</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1795319475323</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -186,6 +194,7 @@
     <MESSAGE value="General Agent tuning, fixed a bug where agents would only take audio instructions instead of text instructions." />
     <MESSAGE value="Fixed linting error." />
     <MESSAGE value="Removed and and ALL instances of MongoDB development from a previous lab/exercise." />
-    <option name="LAST_COMMIT_MESSAGE" value="Removed and and ALL instances of MongoDB development from a previous lab/exercise." />
+    <MESSAGE value="General debugging and firebase error correction" />
+    <option name="LAST_COMMIT_MESSAGE" value="General debugging and firebase error correction" />
   </component>
 </project>
