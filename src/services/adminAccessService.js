@@ -1,12 +1,9 @@
 export function isAdminUser(user, adminEmails) {
   const email = user?.email;
-  const normalizedAdminEmails = (Array.isArray(adminEmails)
-    ? adminEmails
-    : [adminEmails]
+  const normalizedAdminEmails = (
+    Array.isArray(adminEmails) ? adminEmails : [adminEmails]
   )
-    .flatMap((value) =>
-      typeof value === "string" ? value.split(",") : [],
-    )
+    .flatMap((value) => (typeof value === "string" ? value.split(",") : []))
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
 

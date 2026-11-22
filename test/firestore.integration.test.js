@@ -254,7 +254,10 @@ test(
         const crossUserWorkflow = await api(
           user,
           `/api/creations/${creationId}/agent-workflows`,
-          { method: "POST", body: { instructions: "Do not cross user scope." } },
+          {
+            method: "POST",
+            body: { instructions: "Do not cross user scope." },
+          },
         );
         assert.equal(crossUserWorkflow.status, 404);
       }
