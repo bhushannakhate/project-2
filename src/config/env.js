@@ -68,6 +68,8 @@ export function loadConfig(env = process.env) {
     googlePhotosTokenEncryptionKey:
       env.GOOGLE_PHOTOS_TOKEN_ENCRYPTION_KEY || "",
     adkAgentUrl: env.ADK_AGENT_URL || "",
+    ga4MeasurementId: env.GA4_MEASUREMENT_ID || "",
+    ga4ApiSecret: env.GA4_API_SECRET || "",
   };
 }
 

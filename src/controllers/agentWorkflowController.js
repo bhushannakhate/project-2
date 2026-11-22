@@ -10,6 +10,7 @@ import { ApiError } from "../middleware/errorHandler.js";
 import { normalizeImageBuffer } from "../models/imageValidation.js";
 import { MAX_AUDIO_BYTES, MAX_IMAGE_BYTES } from "../models/mediaValidation.js";
 import { invokeAdkWorkflow } from "../services/adkAgentService.js";
+import { sendAnalyticsEvent } from "../services/analyticsService.js";
 
 const AUDIO_CONTENT_TYPES = new Set([
   "audio/mpeg",
@@ -148,6 +149,11 @@ async function saveOutputMedia(firestore, bucket, userId, creationId, output) {
 
 export async function postAgentWorkflow(request, response, config) {
   const requestId = randomUUID();
+  const workflowStartedAt = Date.now();
+  const analyticsContext = {
+    clientId: request.get("x-ga-client-id"),
+    sessionId: request.get("x-ga-session-id"),
+  };
   response.setHeader("X-Request-Id", requestId);
   const userId = request.firebaseUser.uid;
   const { creationId } = request.params;
@@ -255,8 +261,17 @@ export async function postAgentWorkflow(request, response, config) {
         workflowId,
       }),
     );
+    await sendAnalyticsEvent(config, analyticsContext, "agent_workflow", {
+      workflow_status: "completed",
+      duration_ms: Date.now() - workflowStartedAt,
+      revision_count: output.revisionCount,
+    });
     response.json({ creation: updatedCreation, workflowId, requestId, media });
   } catch (error) {
+    await sendAnalyticsEvent(config, analyticsContext, "agent_workflow", {
+      workflow_status: "failed",
+      duration_ms: Date.now() - workflowStartedAt,
+    });
     try {
       await updateCreation(firestore, userId, creationId, {
         status: "failed",

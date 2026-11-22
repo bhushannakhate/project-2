@@ -136,6 +136,8 @@ Deploy Firestore rules and indexes with `firebase deploy --only firestore`.
 
 The MongoDB customer API is disabled by default and is not required for normal startup. To enable it, set `DEMO_CUSTOMERS_ENABLED=true`, configure `MONGODB_URI`, optionally set `MONGODB_DATABASE`, and restart the API. Set the server-only `ADMIN_EMAILS` allowlist to comma-separated Firebase account emails; only allowlisted users with a verified email can read or change customer records. The API checks the verified Firebase ID token on every request; a UI route or client-supplied role is never sufficient. The customer page is shown only when the authenticated profile response confirms administrator access. Its endpoints are mounted under `/api/demo/customers` (`GET`, `POST`, `PATCH /:id`, and `DELETE /:id`). The explicit `npm run seed:demo` command inserts fictional sample records; seeding never runs during server startup.
 
+For hosted deployments, `.env` is local-only and is not included in the Docker image. Set `ADMIN_EMAILS` as a deployment environment variable and deploy/restart the API revision after changing it. The same verified-email requirements apply in hosted and local environments.
+
 ## Project structure
 
 - `src/config`: environment, CORS, and Firebase configuration
@@ -160,3 +162,8 @@ The MongoDB customer API is disabled by default and is not required for normal s
 
 The private Python Google ADK service, local PowerShell/Bash setup, and two-project
 Cloud Run deployment/IAM instructions are documented in [`agents/README.md`](agents/README.md).
+
+GA4 Measurement Protocol events and structured ADK request logs are configured
+in the Express API. See [`docs/analytics-and-logging.md`](docs/analytics-and-logging.md)
+for GA4 setup, the separate React UI integration, Cloud Logging permissions,
+and report metric guidance.

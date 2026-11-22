@@ -7,6 +7,7 @@ from google.adk.tools import ToolContext
 from google.genai import types
 
 from .gemini_client import gemini_async_client
+from .model_logging import generate_content_with_logging
 
 MAX_AUDIO_BYTES = 25 * 1024 * 1024
 ALLOWED_AUDIO_TYPES = {
@@ -105,9 +106,13 @@ async def transcribe_user_audio(tool_context: ToolContext) -> dict[str, str]:
         context["audio_content_type"],
         MAX_AUDIO_BYTES,
     )
+    model = os.getenv("GEMINI_TEXT_MODEL", "gemini-3.5-flash")
     async with gemini_async_client() as client:
-        response = await client.models.generate_content(
-            model=os.getenv("GEMINI_TEXT_MODEL", "gemini-3.5-flash"),
+        response = await generate_content_with_logging(
+            client,
+            stage="audio_transcription",
+            model=model,
+            request_id=context.get("request_id"),
             contents=[
                 types.Part.from_text(
                     text=(

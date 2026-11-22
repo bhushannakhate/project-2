@@ -88,6 +88,7 @@ test("agent workflow accepts typed instructions without requiring audio", () => 
 
 test("Vertex AI capacity responses have a safe actionable API error", async () => {
   const originalFetch = globalThis.fetch;
+  const loggedCalls = [];
   globalThis.fetch = async () => new Response(null, { status: 429 });
   try {
     await assert.rejects(
@@ -97,6 +98,7 @@ test("Vertex AI capacity responses have a safe actionable API error", async () =
           nodeEnv: "development",
         },
         {},
+        { logApiCall: async (call) => loggedCalls.push(call) },
       ),
       {
         status: 429,
@@ -108,4 +110,31 @@ test("Vertex AI capacity responses have a safe actionable API error", async () =
   } finally {
     globalThis.fetch = originalFetch;
   }
+  assert.equal(loggedCalls.length, 1);
+  assert.equal(loggedCalls[0].service, "Google ADK agent");
+  assert.equal(loggedCalls[0].outcome, "failure");
+  assert.equal(loggedCalls[0].statusCode, 429);
+});
+
+test("successful ADK calls record their status and duration", async () => {
+  const loggedCalls = [];
+  const result = await invokeAdkWorkflow(
+    {
+      adkAgentUrl: "http://127.0.0.1:8000",
+      nodeEnv: "development",
+    },
+    { request_id: "request-123" },
+    {
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ approved: true }), { status: 200 }),
+      logApiCall: async (call) => loggedCalls.push(call),
+    },
+  );
+
+  assert.deepEqual(result, { approved: true });
+  assert.equal(loggedCalls.length, 1);
+  assert.equal(loggedCalls[0].outcome, "success");
+  assert.equal(loggedCalls[0].statusCode, 200);
+  assert.equal(loggedCalls[0].requestId, "request-123");
+  assert.equal(Number.isInteger(loggedCalls[0].durationMs), true);
 });

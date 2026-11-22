@@ -233,6 +233,7 @@ async def run_workflow(workflow: AgentWorkflowRequest, request: Request) -> JSON
         workflow.creation_id,
         workflow.workflow_id,
         {
+            "request_id": workflow.request_id,
             "instructions": workflow.instructions,
             "source_image_url": workflow.source_image_url,
             "source_image_content_type": workflow.source_image_content_type,

@@ -8,6 +8,7 @@ from google.genai import types
 
 from .gemini_client import gemini_async_client
 from .media_tools import download_trusted_media
+from .model_logging import generate_content_with_logging
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
@@ -58,10 +59,14 @@ async def _generate_image(
     prompt: str,
 ) -> tuple[bytes, str]:
     model = os.getenv("GEMINI_IMAGE_MODEL", "gemini-3.1-flash-image")
+    context = _workflow_context(tool_context)
     try:
         async with gemini_async_client() as client:
-            response = await client.models.generate_content(
+            response = await generate_content_with_logging(
+                client,
+                stage="image_generation",
                 model=model,
+                request_id=context.get("request_id"),
                 contents=[
                     types.Part.from_text(text=prompt),
                     types.Part.from_bytes(
@@ -115,8 +120,11 @@ async def analyze_source_photo(tool_context: ToolContext) -> dict[str, str]:
     model = os.getenv("GEMINI_TEXT_MODEL", "gemini-3.5-flash")
     try:
         async with gemini_async_client() as client:
-            response = await client.models.generate_content(
+            response = await generate_content_with_logging(
+                client,
+                stage="source_photo_analysis",
                 model=model,
+                request_id=context.get("request_id"),
                 contents=[
                     types.Part.from_text(
                         text=(
@@ -185,9 +193,14 @@ async def _assess_image(
     generated_image: bytes,
     generated_content_type: str,
 ) -> dict[str, object]:
+    context = _workflow_context(tool_context)
+    model = os.getenv("GEMINI_TEXT_MODEL", "gemini-3.5-flash")
     async with gemini_async_client() as client:
-        response = await client.models.generate_content(
-            model=os.getenv("GEMINI_TEXT_MODEL", "gemini-3.5-flash"),
+        response = await generate_content_with_logging(
+            client,
+            stage="generated_image_review",
+            model=model,
+            request_id=context.get("request_id"),
             contents=[
                 types.Part.from_text(
                     text=(

@@ -9,6 +9,8 @@ test("loads defaults without requiring MongoDB for normal startup", () => {
   assert.equal(config.demoCustomersEnabled, false);
   assert.deepEqual(config.adminEmails, []);
   assert.equal(config.googlePhotosClientId, "");
+  assert.equal(config.ga4MeasurementId, "");
+  assert.equal(config.ga4ApiSecret, "");
   assert.equal(config.googlePhotosClientSecret, "");
   assert.deepEqual(config.allowedOrigins, [
     "http://localhost:5173",
@@ -20,14 +22,26 @@ test("loads defaults without requiring MongoDB for normal startup", () => {
   ]);
 });
 
+test("loads optional server-side GA4 settings", () => {
+  const config = loadConfig({
+    GA4_MEASUREMENT_ID: "G-ABC123",
+    GA4_API_SECRET: "server-only-secret",
+  });
+
+  assert.equal(config.ga4MeasurementId, "G-ABC123");
+  assert.equal(config.ga4ApiSecret, "server-only-secret");
+});
+
 test("normalizes the server-side administrator email allowlist", () => {
   const config = loadConfig({
-    ADMIN_EMAILS: " Admin@example.com, admin@example.com ,",
+    ADMIN_EMAILS:
+      " Admin@example.com, admin@example.com ,rtorres32@horizon.csueastbay.edu",
   });
 
   assert.deepEqual(config.adminEmails, [
     "admin@example.com",
     "admin@example.com",
+    "rtorres32@horizon.csueastbay.edu",
   ]);
 });
 

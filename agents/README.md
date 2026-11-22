@@ -21,21 +21,22 @@ image is always required.
 
 ## Files
 
-| File                                    | Purpose                                                                                                                            |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `Dockerfile`                            | Builds the Python 3.12 Cloud Run container and starts Uvicorn.                                                                     |
-| `requirements.txt`                      | Pins the ADK, FastAPI/Uvicorn, Google Auth/GenAI, and HTTP client dependencies.                                                    |
-| `server.py`                             | FastAPI endpoint, Cloud Run caller-token verification, one-invocation runner, and in-memory session lifecycle.                     |
-| `pinboard_agents/.env.example`          | Local non-secret defaults and placeholders for the ADK project and teammate's media bucket.                                        |
-| `pinboard_agents/.env`                  | Ignored, local-only configuration loaded when the agent package starts.                                                            |
-| `pinboard_agents/credentials/`          | Reserved folder; intentionally contains no credential files. Use ADC locally and an attached runtime service account on Cloud Run. |
-| `pinboard_agents/agent.py`              | The Creative Coordinator, Image Retrieval, Audio Processing, Review, and Publishing agents and their ordered workflow.             |
-| `pinboard_agents/tools/media_tools.py`  | Restricts and reads signed media URLs, then transcribes the user's uploaded audio.                                                 |
-| `pinboard_agents/tools/gemini_tools.py` | Analyzes the imported photo, edits it with Gemini, enforces one review revision, and prepares the result for Express.              |
-| `pinboard_agents/__init__.py`           | Exposes the ADK `root_agent` to the ADK development UI.                                                                            |
-| `tests/test_session_isolation.py`       | Checks separation for two user IDs and two creation IDs.                                                                           |
-| `tests/test_media_url_scope.py`         | Verifies signed media URLs cannot cross user or creation boundaries.                                                               |
-| `tests/test_workflow_inputs.py`         | Verifies text-only, audio-only, combined-input, and empty-input request validation.                                                |
+| File                                     | Purpose                                                                                                                            |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `Dockerfile`                             | Builds the Python 3.12 Cloud Run container and starts Uvicorn.                                                                     |
+| `requirements.txt`                       | Pins the ADK, FastAPI/Uvicorn, Google Auth/GenAI, Cloud Logging, and HTTP client dependencies.                                     |
+| `server.py`                              | FastAPI endpoint, Cloud Run caller-token verification, one-invocation runner, and in-memory session lifecycle.                     |
+| `pinboard_agents/.env.example`           | Local non-secret defaults and placeholders for the ADK project and teammate's media bucket.                                        |
+| `pinboard_agents/.env`                   | Ignored, local-only configuration loaded when the agent package starts.                                                            |
+| `pinboard_agents/credentials/`           | Reserved folder; intentionally contains no credential files. Use ADC locally and an attached runtime service account on Cloud Run. |
+| `pinboard_agents/agent.py`               | The Creative Coordinator, Image Retrieval, Audio Processing, Review, and Publishing agents and their ordered workflow.             |
+| `pinboard_agents/tools/media_tools.py`   | Restricts and reads signed media URLs, then transcribes the user's uploaded audio.                                                 |
+| `pinboard_agents/tools/gemini_tools.py`  | Analyzes the imported photo, edits it with Gemini, enforces one review revision, and prepares the result for Express.              |
+| `pinboard_agents/tools/model_logging.py` | Writes structured success/failure and duration records for every Vertex AI Gemini request to Cloud Logging.                        |
+| `pinboard_agents/__init__.py`            | Exposes the ADK `root_agent` to the ADK development UI.                                                                            |
+| `tests/test_session_isolation.py`        | Checks separation for two user IDs and two creation IDs.                                                                           |
+| `tests/test_media_url_scope.py`          | Verifies signed media URLs cannot cross user or creation boundaries.                                                               |
+| `tests/test_workflow_inputs.py`          | Verifies text-only, audio-only, combined-input, and empty-input request validation.                                                |
 
 ## Local setup and run
 
@@ -145,6 +146,10 @@ python -m unittest discover -s agents/tests
 Local development needs an enabled Vertex AI API and an ADC identity allowed to
 invoke Gemini in the ADK project. The backend still needs its existing Firebase
 credentials and access to its Firebase, Firestore, and media bucket.
+The ADK runtime service account also needs `roles/logging.logWriter` in the ADK
+project for Gemini request records. In Logs Explorer for that project, filter
+on `jsonPayload.event="gemini_api_call"`; records include model, workflow stage,
+outcome, duration, and request ID, but never prompts or media.
 
 If Express returns `AGENT_CAPACITY_LIMITED`, ADK received a Vertex AI
 `RESOURCE_EXHAUSTED` response. Wait before retrying and inspect Vertex AI quota
@@ -191,6 +196,7 @@ invocation role in the ADK project:
 ```bash
 gcloud services enable run.googleapis.com aiplatform.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com --project=<ADK_PROJECT_ID>
 gcloud projects add-iam-policy-binding <ADK_PROJECT_ID> --member="serviceAccount:<ADK_RUNTIME_SERVICE_ACCOUNT_EMAIL>" --role="roles/aiplatform.user"
+gcloud projects add-iam-policy-binding <ADK_PROJECT_ID> --member="serviceAccount:<ADK_RUNTIME_SERVICE_ACCOUNT_EMAIL>" --role="roles/logging.logWriter"
 ```
 
 For local development, the ADK project owner may grant the developer's ADC

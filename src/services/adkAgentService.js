@@ -1,5 +1,6 @@
 import { GoogleAuth } from "google-auth-library";
 import { ApiError } from "../middleware/errorHandler.js";
+import { logExternalApiCall } from "./cloudLoggingService.js";
 
 const REQUEST_TIMEOUT_MS = 240_000;
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1"]);
@@ -54,9 +55,14 @@ export function getAdkServiceUrl(config) {
   return url.origin;
 }
 
-export async function invokeAdkWorkflow(config, workflow) {
+export async function invokeAdkWorkflow(config, workflow, dependencies = {}) {
   const serviceUrl = getAdkServiceUrl(config);
   const endpoint = `${serviceUrl}/workflows`;
+  const fetchImpl = dependencies.fetchImpl || fetch;
+  const logApiCall = dependencies.logApiCall || logExternalApiCall;
+  const startedAt = Date.now();
+  let outcome = "failure";
+  let statusCode;
 
   try {
     if (config.nodeEnv === "production") {
@@ -68,16 +74,19 @@ export async function invokeAdkWorkflow(config, workflow) {
         timeout: REQUEST_TIMEOUT_MS,
         maxRedirects: 0,
       });
+      statusCode = response.status;
+      outcome = "success";
       return response.data;
     }
 
-    const response = await fetch(endpoint, {
+    const response = await fetchImpl(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(workflow),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       redirect: "error",
     });
+    statusCode = response.status;
     if (!response.ok) {
       if (response.status === 429) throw agentCapacityError();
       throw new ApiError(
@@ -86,7 +95,9 @@ export async function invokeAdkWorkflow(config, workflow) {
         "The agent service could not complete the workflow.",
       );
     }
-    return await response.json();
+    const result = await response.json();
+    outcome = "success";
+    return result;
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (error.response?.status === 429) throw agentCapacityError();
@@ -95,5 +106,14 @@ export async function invokeAdkWorkflow(config, workflow) {
       "AGENT_UNAVAILABLE",
       "The agent service could not complete the workflow.",
     );
+  } finally {
+    await logApiCall({
+      service: "Google ADK agent",
+      operation: "workflow",
+      outcome,
+      statusCode: statusCode || undefined,
+      durationMs: Date.now() - startedAt,
+      requestId: workflow.request_id,
+    });
   }
 }
