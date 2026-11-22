@@ -7,33 +7,7 @@
     <option name="selectedModelId" value="ensemble" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="bcf41ccb-9264-4751-bed4-1c6ab1ca293c" name="Changes" comment="Fixed linting error.">
-      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/ARCHITECTURE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/seedDemoCustomers.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/app.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config/env.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/config/env.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/controllers/demoCustomerController.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/controllers/firestoreController.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/controllers/firestoreController.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/middleware/errorHandler.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/middleware/errorHandler.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/middleware/validateCustomer.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/models/customerModel.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/models/customerValidation.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/routes/demoCustomerRoutes.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/routes/firestoreRoutes.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/routes/firestoreRoutes.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/server.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/server.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/customerService.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/googlePhotosService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/googlePhotosService.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test/app.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/test/app.test.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test/customerValidation.test.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/test/env.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/test/env.test.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test/firestore.integration.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/test/firestore.integration.test.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test/googlePhotosService.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/test/googlePhotosService.test.js" afterDir="false" />
-    </list>
+    <list default="true" id="bcf41ccb-9264-4751-bed4-1c6ab1ca293c" name="Changes" comment="Removed and and ALL instances of MongoDB development from a previous lab/exercise." />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -149,7 +123,7 @@
       <workItem from="1795109531276" duration="1192000" />
       <workItem from="1795112666633" duration="1777000" />
       <workItem from="1795309762753" duration="2428000" />
-      <workItem from="1795312292600" duration="4346000" />
+      <workItem from="1795312292600" duration="4675000" />
     </task>
     <task id="LOCAL-00001" summary="General Agent tuning, fixed a bug where agents would only take audio instructions instead of text instructions.">
       <option name="closed" value="true" />
@@ -191,7 +165,15 @@
       <option name="project" value="LOCAL" />
       <updated>1795314294435</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="Removed and and ALL instances of MongoDB development from a previous lab/exercise.">
+      <option name="closed" value="true" />
+      <created>1795318766163</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1795318766163</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -203,6 +185,7 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="General Agent tuning, fixed a bug where agents would only take audio instructions instead of text instructions." />
     <MESSAGE value="Fixed linting error." />
-    <option name="LAST_COMMIT_MESSAGE" value="Fixed linting error." />
+    <MESSAGE value="Removed and and ALL instances of MongoDB development from a previous lab/exercise." />
+    <option name="LAST_COMMIT_MESSAGE" value="Removed and and ALL instances of MongoDB development from a previous lab/exercise." />
   </component>
 </project>

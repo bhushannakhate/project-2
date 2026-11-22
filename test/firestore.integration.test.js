@@ -235,10 +235,17 @@ test(
         `/api/creations/${first.id}/agent-workflows`,
         {
           method: "POST",
-          body: { instructions: "Edit my uploaded photo." },
+          body: {
+            instructions: "Edit my uploaded photo.",
+            includeAudio: true,
+          },
         },
       );
       assert.equal(ownerWorkflowRequest.status, 409);
+      assert.equal(
+        (await ownerWorkflowRequest.json()).error.code,
+        "MEDIA_REQUIRED",
+      );
 
       const otherCreationResponse = await api(otherUser, "/api/creations", {
         method: "POST",
