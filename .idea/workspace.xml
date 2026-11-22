@@ -7,7 +7,33 @@
     <option name="selectedModelId" value="ensemble" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="bcf41ccb-9264-4751-bed4-1c6ab1ca293c" name="Changes" comment="General Agent tuning, fixed a bug where agents would only take audio instructions instead of text instructions." />
+    <list default="true" id="bcf41ccb-9264-4751-bed4-1c6ab1ca293c" name="Changes" comment="Fixed linting error.">
+      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/ARCHITECTURE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/seedDemoCustomers.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/app.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/config/env.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/config/env.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/controllers/demoCustomerController.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/controllers/firestoreController.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/controllers/firestoreController.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/middleware/errorHandler.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/middleware/errorHandler.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/middleware/validateCustomer.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/models/customerModel.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/models/customerValidation.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/routes/demoCustomerRoutes.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/routes/firestoreRoutes.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/routes/firestoreRoutes.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/server.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/services/customerService.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/services/googlePhotosService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/googlePhotosService.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test/app.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/test/app.test.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test/customerValidation.test.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/test/env.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/test/env.test.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test/firestore.integration.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/test/firestore.integration.test.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test/googlePhotosService.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/test/googlePhotosService.test.js" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -65,27 +91,27 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
-    &quot;copilot.chat.legacySessionMetadata.migrated&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;feature/GoogleADKSetupReal&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.jshint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.jshint&quot;: &quot;&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "copilot.chat.legacySessionMetadata.migrated": "true",
+    "git-widget-placeholder": "#40 on feature/GoogleADKSetupReal",
+    "ignore.virus.scanning.warn.message": "true",
+    "javascript.preferred.runtime.type.id": "node",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.jshint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.jshint": "",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "preferences.pluginManager"
   }
-}</component>
+}]]></component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -123,7 +149,7 @@
       <workItem from="1795109531276" duration="1192000" />
       <workItem from="1795112666633" duration="1777000" />
       <workItem from="1795309762753" duration="2428000" />
-      <workItem from="1795312292600" duration="1849000" />
+      <workItem from="1795312292600" duration="4346000" />
     </task>
     <task id="LOCAL-00001" summary="General Agent tuning, fixed a bug where agents would only take audio instructions instead of text instructions.">
       <option name="closed" value="true" />
@@ -149,7 +175,23 @@
       <option name="project" value="LOCAL" />
       <updated>1795313907799</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="Fixed linting error.">
+      <option name="closed" value="true" />
+      <created>1795314278756</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1795314278756</updated>
+    </task>
+    <task id="LOCAL-00005" summary="Fixed linting error.">
+      <option name="closed" value="true" />
+      <created>1795314294435</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1795314294435</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -160,6 +202,7 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="General Agent tuning, fixed a bug where agents would only take audio instructions instead of text instructions." />
-    <option name="LAST_COMMIT_MESSAGE" value="General Agent tuning, fixed a bug where agents would only take audio instructions instead of text instructions." />
+    <MESSAGE value="Fixed linting error." />
+    <option name="LAST_COMMIT_MESSAGE" value="Fixed linting error." />
   </component>
 </project>

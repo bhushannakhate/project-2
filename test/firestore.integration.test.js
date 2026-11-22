@@ -28,7 +28,6 @@ test(
       port: 4000,
       nodeEnv: "test",
       allowedOrigins: ["http://localhost:5173"],
-      demoCustomersEnabled: false,
       firebaseProjectId: process.env.GCLOUD_PROJECT || "demo-project-2",
       mediaStorageBucket: process.env.MEDIA_STORAGE_BUCKET,
     };

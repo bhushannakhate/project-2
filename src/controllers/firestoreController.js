@@ -29,6 +29,7 @@ import {
   importGooglePhotosPickerItem,
   listGooglePhotosPickerItems,
   pollGooglePhotosPickerSession,
+  saveGooglePhotosImage,
 } from "../services/googlePhotosService.js";
 
 export async function getCurrentUser(request, response) {
@@ -342,4 +343,38 @@ export async function postGooglePhotosImport(request, response) {
     loadConfig(),
   );
   response.json({ media });
+}
+
+export async function postGooglePhotosSave(request, response) {
+  const unexpected = Object.keys(request.body || {}).find(
+    (key) => key !== "mediaKind",
+  );
+  if (
+    unexpected ||
+    !["sourceImage", "outputImage"].includes(request.body?.mediaKind)
+  ) {
+    throw new ApiError(
+      400,
+      "VALIDATION_ERROR",
+      "Choose a source or generated image to save.",
+    );
+  }
+
+  const { bucket, firestore } = getFirebase();
+  const userId = request.firebaseUser.uid;
+  const { creationId } = request.params;
+  const creation = await getCreation(firestore, userId, creationId);
+  if (!creation) {
+    throw new ApiError(404, "NOT_FOUND", "Creation not found.");
+  }
+  const result = await saveGooglePhotosImage(
+    firestore,
+    bucket,
+    userId,
+    creationId,
+    request.body.mediaKind,
+    creation,
+    loadConfig(),
+  );
+  response.json(result);
 }

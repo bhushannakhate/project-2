@@ -8,7 +8,6 @@ const config = {
   port: 4000,
   nodeEnv: "test",
   allowedOrigins: ["http://localhost:5173"],
-  demoCustomersEnabled: false,
 };
 
 async function withServer(app, run) {
@@ -60,7 +59,7 @@ test("Firestore routes require a Firebase bearer token", async () => {
 
 test("malformed JSON uses the standard API error format", async () => {
   await withServer(createApp({ config }), async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/api/demo/customers`, {
+    const response = await fetch(`${baseUrl}/api/missing`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: "{",
@@ -165,21 +164,4 @@ test("unexpected server errors remain redacted", () => {
       message: "An unexpected error occurred.",
     },
   });
-});
-
-test("customer demo routes are absent unless explicitly enabled", async () => {
-  await withServer(createApp({ config }), async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/api/demo/customers`);
-    assert.equal(response.status, 404);
-  });
-});
-
-test("enabling customer demo routes requires a MongoDB collection", () => {
-  assert.throws(
-    () =>
-      createApp({
-        config: { ...config, demoCustomersEnabled: true },
-      }),
-    /MongoDB customer collection is required/,
-  );
 });

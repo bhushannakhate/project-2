@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/bhushannakhate/project-2/actions/workflows/ci.yml/badge.svg)](https://github.com/bhushannakhate/project-2/actions/workflows/ci.yml)
 
-Maintainable Express 5 API for the Pinboard Studio application. The normal server startup does not connect to MongoDB. Firebase/Firestore APIs are mounted under `/api`; the legacy MongoDB customer API is an opt-in demo available only at `/api/demo/customers`.
+Maintainable Express 5 API for the Pinboard Studio application. Firebase/Firestore APIs are mounted under `/api`.
 
 ## Deployment
 
@@ -74,6 +74,7 @@ All Firestore endpoints require `Authorization: Bearer <Firebase ID token>`.
 | `GET`    | `/api/google-photos/sessions/:sessionId`                                                             | Poll the owner-bound Picker session.                                              |
 | `GET`    | `/api/google-photos/sessions/:sessionId/media-items`                                                 | List selected photos without exposing temporary base URLs.                        |
 | `POST`   | `/api/creations/:creationId/google-photos/sessions/:sessionId/import`                                | Import one selected photo through media validation.                               |
+| `POST`   | `/api/creations/:creationId/google-photos/save`                                                      | Save an owned source or generated image to the user's Photos library.             |
 | `DELETE` | `/api/google-photos/sessions/:sessionId`                                                             | Delete the Picker session and its local session record.                           |
 
 Create a creation with `instructions`, `status`, and optional JSON-object `metadata` / `pinterest` values (up to 4 KB each). Existing clients may still provide absolute HTTP(S) `sourceImageUrl`, `outputImageUrl`, or `audioUrl` values during the transition; new media must use the managed upload routes. Creation ownership and server-managed fields cannot be supplied by clients. List requests default to 20 results and accept `limit` from 1 to 100, a supported `status`, a case-insensitive `search` term up to 100 characters, inclusive `from`/`to` dates in `YYYY-MM-DD` format, and the `nextCursor` from the previous response. Deleted creations are hidden from reads and lists.
@@ -95,11 +96,11 @@ Cloud authentication, and private two-project deployment.
 
 Set `MEDIA_STORAGE_BUCKET` to the dedicated private bucket name. The bucket must have public access prevention and uniform bucket-level access enabled. `config/media-bucket-cors.json` and `config/media-bucket-lifecycle.json` configure direct browser uploads and one-day staging cleanup. The Cloud Run runtime service account needs object-level bucket access and permission to sign URLs. Never make this bucket public.
 
-### Google Photos Picker setup
+### Google Photos setup
 
-The Google Photos Picker API must be enabled in the canonical Google Cloud project. Configure a Google OAuth web client with the exact callback URI `https://project-2-api-m5lsuu6ouq-uc.a.run.app/api/google-photos/oauth/callback` in production and `http://localhost:4000/api/google-photos/oauth/callback` for local development. Add the corresponding frontend origins to the OAuth client and API `WEB_ORIGIN`. Use Google's current OAuth verification and test-user requirements before production use.
+Enable both the Google Photos Picker API and Google Photos Library API in the canonical Google Cloud project. Configure a Google OAuth web client with the exact callback URI `https://project-2-api-m5lsuu6ouq-uc.a.run.app/api/google-photos/oauth/callback` in production and `http://localhost:4000/api/google-photos/oauth/callback` for local development. Add the corresponding frontend origins to the OAuth client and API `WEB_ORIGIN`. Use Google's current OAuth verification and test-user requirements before production use.
 
-Set `GOOGLE_PHOTOS_CLIENT_ID`, `GOOGLE_PHOTOS_CLIENT_SECRET`, `GOOGLE_PHOTOS_REDIRECT_URI`, and `GOOGLE_PHOTOS_TOKEN_ENCRYPTION_KEY` on the API. Generate a 32-byte encryption key locally with `openssl rand -base64 32`; keep the OAuth client secret and encryption key in Secret Manager for Cloud Run, never in source control or frontend configuration. The API requests only `photospicker.mediaitems.readonly`; it stores user tokens AES-256-GCM encrypted in server-only Firestore documents. Replacing the encryption key without re-encrypting existing documents makes existing connections unreadable.
+Set `GOOGLE_PHOTOS_CLIENT_ID`, `GOOGLE_PHOTOS_CLIENT_SECRET`, `GOOGLE_PHOTOS_REDIRECT_URI`, and `GOOGLE_PHOTOS_TOKEN_ENCRYPTION_KEY` on the API. Generate a 32-byte encryption key locally with `openssl rand -base64 32`; keep the OAuth client secret and encryption key in Secret Manager for Cloud Run, never in source control or frontend configuration. Add both requested scopes to the OAuth consent screen's Data Access configuration: `photospicker.mediaitems.readonly` imports selected items, and `photoslibrary.appendonly` saves a selected or generated image only when the user requests it. Existing Picker-only connections are asked to grant the save scope the first time they save. Tokens are AES-256-GCM encrypted in server-only Firestore documents. Replacing the encryption key without re-encrypting existing documents makes existing connections unreadable.
 
 OAuth states and Picker session records have an `expiresAt` field. Enable Firestore TTL for both collection groups:
 
@@ -132,20 +133,13 @@ gcloud firestore fields ttls update expiresAt \
 
 Deploy Firestore rules and indexes with `firebase deploy --only firestore`.
 
-## Optional demo customer API
-
-The MongoDB customer API is disabled by default and is not required for normal startup. To enable it, set `DEMO_CUSTOMERS_ENABLED=true`, configure `MONGODB_URI`, optionally set `MONGODB_DATABASE`, and restart the API. Set the server-only `ADMIN_EMAILS` allowlist to comma-separated Firebase account emails; only allowlisted users with a verified email can read or change customer records. The API checks the verified Firebase ID token on every request; a UI route or client-supplied role is never sufficient. The customer page is shown only when the authenticated profile response confirms administrator access. Its endpoints are mounted under `/api/demo/customers` (`GET`, `POST`, `PATCH /:id`, and `DELETE /:id`). The explicit `npm run seed:demo` command inserts fictional sample records; seeding never runs during server startup.
-
-For hosted deployments, `.env` is local-only and is not included in the Docker image. Set `ADMIN_EMAILS` as a deployment environment variable and deploy/restart the API revision after changing it. The same verified-email requirements apply in hosted and local environments.
-
 ## Project structure
 
 - `src/config`: environment, CORS, and Firebase configuration
-- `src/routes`: Firestore and optional demo route declarations
+- `src/routes`: Firestore and application route declarations
 - `src/controllers`: HTTP request/response handling
-- `src/services`: Firestore, media storage lifecycle, Google Photos Picker, and customer operations
+- `src/services`: Firestore, media storage lifecycle, and Google Photos Picker
 - `src/middleware`: async handling, authentication, validation, not-found, and error responses
-- `src/models`: MongoDB customer ID mapping and demo validation
 - `src/app.js`: Express middleware and route composition
 - `src/server.js`: service initialization and HTTP startup
 - `src/index.js`: importable app entry point
