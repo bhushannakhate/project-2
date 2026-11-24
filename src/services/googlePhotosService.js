@@ -371,6 +371,7 @@ async function getAccessToken(
   config,
   fetchImpl,
   requiredScope = GOOGLE_PHOTOS_PICKER_SCOPE,
+  { forceRefresh = false } = {},
 ) {
   assertOAuthConfig(config);
   const reference = tokenReference(firestore, userId);
@@ -391,7 +392,10 @@ async function getAccessToken(
       "Reconnect Google Photos and approve permission to save images.",
     );
   }
-  if (tokens.expiresAt > Date.now() + TOKEN_REFRESH_MARGIN_MS) {
+  if (
+    !forceRefresh &&
+    tokens.expiresAt > Date.now() + TOKEN_REFRESH_MARGIN_MS
+  ) {
     return tokens.accessToken;
   }
 
@@ -426,6 +430,59 @@ async function getAccessToken(
     updatedAt: Timestamp.now(),
   });
   return tokens.accessToken;
+}
+
+async function uploadGooglePhotosBytes(
+  imageBytes,
+  contentType,
+  accessToken,
+  fetchImpl,
+) {
+  try {
+    return await fetchImpl(`${GOOGLE_LIBRARY_API}/uploads`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/octet-stream",
+        "X-Goog-Upload-Content-Type": contentType,
+        "X-Goog-Upload-Protocol": "raw",
+      },
+      body: imageBytes,
+      signal: AbortSignal.timeout(GOOGLE_REQUEST_TIMEOUT_MS),
+    });
+  } catch {
+    throw new ApiError(
+      502,
+      "GOOGLE_PHOTOS_UNAVAILABLE",
+      "Google Photos could not be reached. Please retry.",
+    );
+  }
+}
+
+async function googleApiRequestWithTokenRefresh(
+  firestore,
+  userId,
+  config,
+  url,
+  accessToken,
+  options,
+  fetchImpl,
+) {
+  try {
+    return await googleApiRequest(url, accessToken, options, fetchImpl);
+  } catch (error) {
+    if (error.status !== 401) throw error;
+  }
+
+  const refreshedAccessToken = await getAccessToken(
+    firestore,
+    userId,
+    config,
+    fetchImpl,
+    GOOGLE_PHOTOS_APPEND_SCOPE,
+    { forceRefresh: true },
+  );
+  return googleApiRequest(url, refreshedAccessToken, options, fetchImpl);
 }
 
 export async function disconnectGooglePhotos(
@@ -466,6 +523,73 @@ export async function disconnectGooglePhotos(
   return { disconnected: true };
 }
 
+function googleUploadErrorReason(payload) {
+  const reasons = [
+    ...(payload?.error?.details || []).map((detail) => detail?.reason),
+    ...(payload?.error?.errors || []).map((detail) => detail?.reason),
+    payload?.error?.status,
+  ];
+  return reasons.find(
+    (reason) =>
+      typeof reason === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(reason),
+  );
+}
+
+function throwGoogleUploadError(response, responseBody) {
+  let payload;
+  try {
+    payload = JSON.parse(responseBody);
+  } catch {
+    payload = null;
+  }
+
+  const reason = googleUploadErrorReason(payload);
+  console.warn(
+    JSON.stringify({
+      event: "google_photos_upload_rejected",
+      status: response.status,
+      reason: reason || "UNKNOWN",
+    }),
+  );
+
+  if (reason === "SERVICE_DISABLED") {
+    throw new ApiError(
+      503,
+      "GOOGLE_PHOTOS_API_DISABLED",
+      "Google Photos uploads are not enabled for this app. Enable the Google Photos Library API in its Google Cloud project, then retry.",
+    );
+  }
+  if (response.status === 401) {
+    throw new ApiError(
+      401,
+      "GOOGLE_PHOTOS_REAUTH_REQUIRED",
+      "Reconnect your Google Photos account and try again.",
+    );
+  }
+  if (
+    reason === "ACCESS_TOKEN_SCOPE_INSUFFICIENT" ||
+    reason === "PERMISSION_DENIED"
+  ) {
+    throw new ApiError(
+      403,
+      "GOOGLE_PHOTOS_PERMISSION_REQUIRED",
+      "Google Photos denied permission to upload. Reconnect Google Photos and approve the save permission.",
+    );
+  }
+  if (response.status === 429) {
+    throw new ApiError(
+      429,
+      "GOOGLE_PHOTOS_RATE_LIMITED",
+      "Google Photos is temporarily limiting uploads. Wait a little and retry.",
+    );
+  }
+  throw new ApiError(
+    502,
+    "GOOGLE_PHOTOS_UPLOAD_FAILED",
+    "Google Photos rejected the image upload. Please retry. If this keeps happening, check the Google Photos API and OAuth configuration.",
+  );
+}
+
 export async function saveGooglePhotosImage(
   firestore,
   bucket,
@@ -484,7 +608,7 @@ export async function saveGooglePhotosImage(
     );
   }
 
-  const accessToken = await getAccessToken(
+  let accessToken = await getAccessToken(
     firestore,
     userId,
     config,
@@ -535,37 +659,53 @@ export async function saveGooglePhotosImage(
     );
   }
 
-  let uploadResponse;
-  try {
-    uploadResponse = await fetchImpl(`${GOOGLE_LIBRARY_API}/uploads`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/octet-stream",
-        "X-Goog-Upload-Content-Type": contentType,
-        "X-Goog-Upload-Protocol": "raw",
-      },
-      body: imageBytes,
-      signal: AbortSignal.timeout(GOOGLE_REQUEST_TIMEOUT_MS),
-    });
-  } catch {
-    throw new ApiError(
-      502,
-      "GOOGLE_PHOTOS_UNAVAILABLE",
-      "Google Photos could not be reached. Please retry.",
+  let uploadResponse = await uploadGooglePhotosBytes(
+    imageBytes,
+    contentType,
+    accessToken,
+    fetchImpl,
+  );
+  if (uploadResponse.status === 401) {
+    const refreshedAccessToken = await getAccessToken(
+      firestore,
+      userId,
+      config,
+      fetchImpl,
+      GOOGLE_PHOTOS_APPEND_SCOPE,
+      { forceRefresh: true },
+    );
+    accessToken = refreshedAccessToken;
+    uploadResponse = await uploadGooglePhotosBytes(
+      imageBytes,
+      contentType,
+      refreshedAccessToken,
+      fetchImpl,
     );
   }
-  const uploadToken = (await uploadResponse.text().catch(() => "")).trim();
-  if (!uploadResponse.ok || !uploadToken || uploadToken.length > 4096) {
+  const uploadResponseBody = await uploadResponse.text().catch(() => "");
+  const uploadToken = uploadResponseBody.trim();
+  if (!uploadResponse.ok) {
+    throwGoogleUploadError(uploadResponse, uploadResponseBody);
+  }
+  if (!uploadToken || uploadToken.length > 4096) {
+    console.warn(
+      JSON.stringify({
+        event: "google_photos_upload_invalid_response",
+        status: uploadResponse.status,
+      }),
+    );
     throw new ApiError(
       502,
       "GOOGLE_PHOTOS_UPLOAD_FAILED",
-      "Google Photos could not upload the image. Please retry.",
+      "Google Photos returned an invalid upload response. Please retry.",
     );
   }
 
   const filename = `pinboard-studio-${mediaKind}.${extensions[contentType]}`;
-  const result = await googleApiRequest(
+  const result = await googleApiRequestWithTokenRefresh(
+    firestore,
+    userId,
+    config,
     `${GOOGLE_LIBRARY_API}/mediaItems:batchCreate`,
     accessToken,
     {
@@ -1176,6 +1316,7 @@ export async function importGooglePhotosPickerItem(
           userId,
           creationId,
           upload.uploadId,
+          { importedFrom: "google_photos_picker" },
         );
       } catch (error) {
         await discardMediaUpload(firestore, bucket, userId, upload.uploadId);
