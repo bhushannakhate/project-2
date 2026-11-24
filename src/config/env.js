@@ -22,17 +22,6 @@ export function loadConfig(env = process.env) {
     throw new Error("WEB_ORIGIN must contain at least one allowed origin.");
   }
 
-  const demoCustomersEnabled = parseBoolean(
-    env.DEMO_CUSTOMERS_ENABLED,
-    "DEMO_CUSTOMERS_ENABLED",
-  );
-  const mongodbUri = env.MONGODB_URI || "";
-  if (demoCustomersEnabled && !mongodbUri) {
-    throw new Error(
-      "MONGODB_URI is required when DEMO_CUSTOMERS_ENABLED=true.",
-    );
-  }
-
   const firebaseCredentialProfile = (
     env.FIREBASE_CREDENTIAL_PROFILE || "bhushan"
   ).toLowerCase();
@@ -51,9 +40,6 @@ export function loadConfig(env = process.env) {
     port,
     nodeEnv,
     allowedOrigins,
-    demoCustomersEnabled,
-    mongodbUri,
-    mongodbDatabase: env.MONGODB_DATABASE || "project2",
     firebaseProjectId: env.FIREBASE_PROJECT_ID || "",
     mediaStorageBucket: env.MEDIA_STORAGE_BUCKET || "",
     firebaseCredentialProfile,
@@ -67,12 +53,8 @@ export function loadConfig(env = process.env) {
     googlePhotosRedirectUri: env.GOOGLE_PHOTOS_REDIRECT_URI || "",
     googlePhotosTokenEncryptionKey:
       env.GOOGLE_PHOTOS_TOKEN_ENCRYPTION_KEY || "",
+    adkAgentUrl: env.ADK_AGENT_URL || "",
+    ga4MeasurementId: env.GA4_MEASUREMENT_ID || "",
+    ga4ApiSecret: env.GA4_API_SECRET || "",
   };
-}
-
-function parseBoolean(value, name) {
-  if (value === undefined || value === "") return false;
-  if (value === "true") return true;
-  if (value === "false") return false;
-  throw new Error(`${name} must be true or false.`);
 }

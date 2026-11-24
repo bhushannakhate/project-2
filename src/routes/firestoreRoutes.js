@@ -14,6 +14,7 @@ import {
   postMediaUpload,
   postGooglePhotosAuthorization,
   postGooglePhotosImport,
+  postGooglePhotosSave,
   postGooglePhotosPickerSession,
   removeCreation,
   deleteGooglePhotosConnection,
@@ -74,6 +75,12 @@ router.post(
   requireFirebaseUser,
   validateBody,
   asyncHandler(postGooglePhotosImport),
+);
+router.post(
+  "/creations/:creationId/google-photos/save",
+  requireFirebaseUser,
+  validateBody,
+  asyncHandler(postGooglePhotosSave),
 );
 router.patch(
   "/users/me",

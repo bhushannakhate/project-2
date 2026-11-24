@@ -28,7 +28,6 @@ test(
       port: 4000,
       nodeEnv: "test",
       allowedOrigins: ["http://localhost:5173"],
-      demoCustomersEnabled: false,
       firebaseProjectId: process.env.GCLOUD_PROJECT || "demo-project-2",
       mediaStorageBucket: process.env.MEDIA_STORAGE_BUCKET,
     };
@@ -231,6 +230,44 @@ test(
       );
       assert.equal(unauthorizedMediaRead.status, 404);
 
+      const ownerWorkflowRequest = await api(
+        owner,
+        `/api/creations/${first.id}/agent-workflows`,
+        {
+          method: "POST",
+          body: {
+            instructions: "Edit my uploaded photo.",
+            includeAudio: true,
+          },
+        },
+      );
+      assert.equal(ownerWorkflowRequest.status, 409);
+      assert.equal(
+        (await ownerWorkflowRequest.json()).error.code,
+        "MEDIA_REQUIRED",
+      );
+
+      const otherCreationResponse = await api(otherUser, "/api/creations", {
+        method: "POST",
+        body: { instructions: "Other user's creation." },
+      });
+      assert.equal(otherCreationResponse.status, 201);
+      const { creation: otherCreation } = await otherCreationResponse.json();
+      for (const [user, creationId] of [
+        [owner, otherCreation.id],
+        [otherUser, first.id],
+      ]) {
+        const crossUserWorkflow = await api(
+          user,
+          `/api/creations/${creationId}/agent-workflows`,
+          {
+            method: "POST",
+            body: { instructions: "Do not cross user scope." },
+          },
+        );
+        assert.equal(crossUserWorkflow.status, 404);
+      }
+
       const pendingResponse = await api(
         owner,
         `/api/creations/${first.id}/media/audio/uploads`,
@@ -344,7 +381,10 @@ test(
       assert.equal(crossUserDelete.status, 404);
       const otherUsersList = await api(otherUser, "/api/creations");
       const otherUsersPage = await otherUsersList.json();
-      assert.deepEqual(otherUsersPage.creations, []);
+      assert.deepEqual(
+        otherUsersPage.creations.map((item) => item.id),
+        [otherCreation.id],
+      );
       assert.equal(otherUsersPage.nextCursor, null);
       const otherUsersCursor = await api(
         otherUser,

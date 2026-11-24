@@ -207,17 +207,18 @@ Direct upload endpoints, where `:mediaKind` is one of the supported kinds:
 | `POST` | `/api/creations/:creationId/media/uploads/:uploadId/complete` | Verify upload and attach its reference to the creation.                                             |
 | `GET`  | `/api/creations/:creationId/media/:mediaKind/download-url`    | Return an ownership-checked signed download URL.                                                    |
 
-### Google Photos Picker import
+### Google Photos Picker import and save
 
 Google Photos is an explicit, owner-bound import path. The browser never sends a Google media URL directly to Cloud Storage and the API never stores a Google base URL in Firestore.
 
-1. The API starts the OAuth authorization-code flow with PKCE and the narrow Picker scope `photospicker.mediaitems.readonly`.
+1. The API starts the OAuth authorization-code flow with PKCE, requesting `photospicker.mediaitems.readonly` for imports and `photoslibrary.appendonly` for user-initiated saves.
 2. Encrypted Google OAuth tokens are stored at `users/{uid}/integrations/googlePhotos`; the encryption key is supplied by `GOOGLE_PHOTOS_TOKEN_ENCRYPTION_KEY`.
 3. The API creates a Google Picker session and stores its owner and creation binding at `users/{uid}/googlePhotosSessions/{sessionId}`.
 4. The browser opens the returned Picker URI, then asks the API for the selected item metadata. Only photo items with JPEG, PNG, or WebP MIME types are exposed.
 5. On import, the API verifies the creation and session ownership, confirms the item belongs to the selected Picker session, validates the Google media host, downloads the bytes server-side, and enforces the 10 MiB image limit.
 6. The bytes enter the same staging and `completeMediaUpload` validation pipeline as direct uploads. The image is normalized, attached to `media.sourceImage`, and served later through an ownership-checked signed download URL.
 7. The remote Picker session and local session record are deleted after a successful import or after a handled import failure.
+8. When the user saves an image, the API reads the owned, validated source or generated image from private storage and uses the Google Photos Library upload flow. The browser never receives Google OAuth tokens.
 
 The preferred import path writes the downloaded bytes to the bucket through the Cloud Storage SDK. A signed-upload fallback is retained for environments where direct SDK staging is unavailable. Both paths require the API's service account to have bucket-scoped object-create/read/delete access; a missing `storage.objects.create` permission produces a storage import failure rather than a partial media record.
 
@@ -233,6 +234,7 @@ Google Photos routes:
 | `GET`    | `/api/google-photos/sessions/:sessionId`                              | Poll Picker session readiness.                                     |
 | `GET`    | `/api/google-photos/sessions/:sessionId/media-items`                  | List selected photo metadata without exposing temporary base URLs. |
 | `POST`   | `/api/creations/:creationId/google-photos/sessions/:sessionId/import` | Download, validate, store, and attach one selected photo.          |
+| `POST`   | `/api/creations/:creationId/google-photos/save`                       | Save an owned source or generated image to Google Photos.          |
 | `DELETE` | `/api/google-photos/sessions/:sessionId`                              | Cancel a Picker session and remove its local record.               |
 
 ## 7. API route inventory
@@ -252,26 +254,6 @@ All routes below are served from `https://project-2-api-m5lsuu6ouq-uc.a.run.app`
 | `POST`   | `/api/creations/:creationId/media/:mediaKind/uploads`         | Start a direct media upload.                                             |
 | `POST`   | `/api/creations/:creationId/media/uploads/:uploadId/complete` | Finalize a direct upload.                                                |
 | `GET`    | `/api/creations/:creationId/media/:mediaKind/download-url`    | Request short-lived access to owned media.                               |
-
-### Optional legacy/demo MongoDB API
-
-MongoDB is not used by normal app startup and is separate from authentication, profiles, creations, and media. If `DEMO_CUSTOMERS_ENABLED=true`, the API connects to the configured MongoDB URI, database `project2` by default, collection `customers`, and creates a unique index on `email`.
-
-| Customer field      | Type             | Rules/default                                                            |
-| ------------------- | ---------------- | ------------------------------------------------------------------------ |
-| `_id`               | MongoDB ObjectId | Returned by the API as string `id`.                                      |
-| `fullName`          | string           | Required, maximum 100 characters.                                        |
-| `email`             | string           | Required, lowercased, valid email, maximum 254 characters, unique index. |
-| `username`          | string           | Required, maximum 30 characters; letters, numbers, `.`, `_`, `-`.        |
-| `phone`             | string           | Optional; defaults to empty string; maximum 30 characters.               |
-| `bio`               | string           | Optional; defaults to empty string; maximum 500 characters.              |
-| `preferredCategory` | string           | Optional; defaults to `General inspiration`; maximum 80 characters.      |
-| `interests`         | string array     | Optional; defaults to empty; up to 20 items, each up to 50 characters.   |
-| `marketingOptIn`    | boolean          | Optional; defaults to `false`.                                           |
-| `createdAt`         | date             | Set by the API on insert.                                                |
-| `updatedAt`         | date             | Set by the API on update.                                                |
-
-The optional routes are `GET/POST /api/demo/customers`, `PATCH /api/demo/customers/:id`, and `DELETE /api/demo/customers/:id`. They are not the application's user or creation database, and currently do not use Firebase authentication middleware. Keep the demo disabled unless it is intentionally needed and secured.
 
 ## 8. Features not represented by these schemas
 

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/bhushannakhate/project-2/actions/workflows/ci.yml/badge.svg)](https://github.com/bhushannakhate/project-2/actions/workflows/ci.yml)
 
-Maintainable Express 5 API for the Pinboard Studio application. The normal server startup does not connect to MongoDB. Firebase/Firestore APIs are mounted under `/api`; the legacy MongoDB customer API is an opt-in demo available only at `/api/demo/customers`.
+Maintainable Express 5 API for the Pinboard Studio application. Firebase/Firestore APIs are mounted under `/api`.
 
 ## Deployment
 
@@ -65,6 +65,7 @@ All Firestore endpoints require `Authorization: Bearer <Firebase ID token>`.
 | `POST`   | `/api/creations/:creationId/media/:mediaKind/uploads`                                                | Start a short-lived source/output/audio upload.                                   |
 | `POST`   | `/api/creations/:creationId/media/uploads/:uploadId/complete`                                        | Validate and attach an uploaded file to the creation.                             |
 | `GET`    | `/api/creations/:creationId/media/:mediaKind/download-url`                                           | Get a short-lived URL for owned media.                                            |
+| `POST`   | `/api/creations/:creationId/agent-workflows`                                                         | Run the private ADK workflow using the creation's uploaded image and audio.       |
 | `GET`    | `/api/google-photos/connection`                                                                      | Get the current user's Google Photos connection status.                           |
 | `POST`   | `/api/google-photos/oauth/authorize`                                                                 | Start the state- and PKCE-protected Google OAuth flow.                            |
 | `GET`    | `/api/google-photos/oauth/callback`                                                                  | Google OAuth callback; protected by one-use server state.                         |
@@ -73,6 +74,7 @@ All Firestore endpoints require `Authorization: Bearer <Firebase ID token>`.
 | `GET`    | `/api/google-photos/sessions/:sessionId`                                                             | Poll the owner-bound Picker session.                                              |
 | `GET`    | `/api/google-photos/sessions/:sessionId/media-items`                                                 | List selected photos without exposing temporary base URLs.                        |
 | `POST`   | `/api/creations/:creationId/google-photos/sessions/:sessionId/import`                                | Import one selected photo through media validation.                               |
+| `POST`   | `/api/creations/:creationId/google-photos/save`                                                      | Save an owned source or generated image to the user's Photos library.             |
 | `DELETE` | `/api/google-photos/sessions/:sessionId`                                                             | Delete the Picker session and its local session record.                           |
 
 Create a creation with `instructions`, `status`, and optional JSON-object `metadata` / `pinterest` values (up to 4 KB each). Existing clients may still provide absolute HTTP(S) `sourceImageUrl`, `outputImageUrl`, or `audioUrl` values during the transition; new media must use the managed upload routes. Creation ownership and server-managed fields cannot be supplied by clients. List requests default to 20 results and accept `limit` from 1 to 100, a supported `status`, a case-insensitive `search` term up to 100 characters, inclusive `from`/`to` dates in `YYYY-MM-DD` format, and the `nextCursor` from the previous response. Deleted creations are hidden from reads and lists.
@@ -85,13 +87,20 @@ Media lifecycle:
 4. Request a download URL for a specific media kind when needed. It expires after 5 minutes. URLs are bearer links while valid and should not be stored.
 5. Deleting a creation removes its media and pending upload sessions. Failed or abandoned staged objects are automatically deleted by the bucket lifecycle rule after one day; expired Firestore upload sessions use the `expiresAt` TTL policy.
 
+The agent workflow requires an owned creation with a validated `sourceImage` and
+either written instructions, user-uploaded `audio`, or both. Audio is optional.
+The browser may send only instructions and whether to include the uploaded audio;
+IDs, media URLs, review state, and durable writes are managed by the authenticated
+Express backend. See [`agents/README.md`](agents/README.md) for local setup, Google
+Cloud authentication, and private two-project deployment.
+
 Set `MEDIA_STORAGE_BUCKET` to the dedicated private bucket name. The bucket must have public access prevention and uniform bucket-level access enabled. `config/media-bucket-cors.json` and `config/media-bucket-lifecycle.json` configure direct browser uploads and one-day staging cleanup. The Cloud Run runtime service account needs object-level bucket access and permission to sign URLs. Never make this bucket public.
 
-### Google Photos Picker setup
+### Google Photos setup
 
-The Google Photos Picker API must be enabled in the canonical Google Cloud project. Configure a Google OAuth web client with the exact callback URI `https://project-2-api-m5lsuu6ouq-uc.a.run.app/api/google-photos/oauth/callback` in production and `http://localhost:4000/api/google-photos/oauth/callback` for local development. Add the corresponding frontend origins to the OAuth client and API `WEB_ORIGIN`. Use Google's current OAuth verification and test-user requirements before production use.
+Enable both the Google Photos Picker API and Google Photos Library API in the canonical Google Cloud project. Configure a Google OAuth web client with the exact callback URI `https://project-2-api-m5lsuu6ouq-uc.a.run.app/api/google-photos/oauth/callback` in production and `http://localhost:4000/api/google-photos/oauth/callback` for local development. Add the corresponding frontend origins to the OAuth client and API `WEB_ORIGIN`. Use Google's current OAuth verification and test-user requirements before production use.
 
-Set `GOOGLE_PHOTOS_CLIENT_ID`, `GOOGLE_PHOTOS_CLIENT_SECRET`, `GOOGLE_PHOTOS_REDIRECT_URI`, and `GOOGLE_PHOTOS_TOKEN_ENCRYPTION_KEY` on the API. Generate a 32-byte encryption key locally with `openssl rand -base64 32`; keep the OAuth client secret and encryption key in Secret Manager for Cloud Run, never in source control or frontend configuration. The API requests only `photospicker.mediaitems.readonly`; it stores user tokens AES-256-GCM encrypted in server-only Firestore documents. Replacing the encryption key without re-encrypting existing documents makes existing connections unreadable.
+Set `GOOGLE_PHOTOS_CLIENT_ID`, `GOOGLE_PHOTOS_CLIENT_SECRET`, `GOOGLE_PHOTOS_REDIRECT_URI`, and `GOOGLE_PHOTOS_TOKEN_ENCRYPTION_KEY` on the API. Generate a 32-byte encryption key locally with `openssl rand -base64 32`; keep the OAuth client secret and encryption key in Secret Manager for Cloud Run, never in source control or frontend configuration. Add both requested scopes to the OAuth consent screen's Data Access configuration: `photospicker.mediaitems.readonly` imports selected items, and `photoslibrary.appendonly` saves a selected or generated image only when the user requests it. Existing Picker-only connections are asked to grant the save scope the first time they save. Tokens are AES-256-GCM encrypted in server-only Firestore documents. Replacing the encryption key without re-encrypting existing documents makes existing connections unreadable.
 
 OAuth states and Picker session records have an `expiresAt` field. Enable Firestore TTL for both collection groups:
 
@@ -124,18 +133,13 @@ gcloud firestore fields ttls update expiresAt \
 
 Deploy Firestore rules and indexes with `firebase deploy --only firestore`.
 
-## Optional demo customer API
-
-The MongoDB customer API is disabled by default and is not required for normal startup. To enable it, set `DEMO_CUSTOMERS_ENABLED=true`, configure `MONGODB_URI`, optionally set `MONGODB_DATABASE`, and restart the API. Set the server-only `ADMIN_EMAILS` allowlist to comma-separated Firebase account emails; only allowlisted users with a verified email can read or change customer records. The API checks the verified Firebase ID token on every request; a UI route or client-supplied role is never sufficient. The customer page is shown only when the authenticated profile response confirms administrator access. Its endpoints are mounted under `/api/demo/customers` (`GET`, `POST`, `PATCH /:id`, and `DELETE /:id`). The explicit `npm run seed:demo` command inserts fictional sample records; seeding never runs during server startup.
-
 ## Project structure
 
 - `src/config`: environment, CORS, and Firebase configuration
-- `src/routes`: Firestore and optional demo route declarations
+- `src/routes`: Firestore and application route declarations
 - `src/controllers`: HTTP request/response handling
-- `src/services`: Firestore, media storage lifecycle, Google Photos Picker, and customer operations
+- `src/services`: Firestore, media storage lifecycle, and Google Photos Picker
 - `src/middleware`: async handling, authentication, validation, not-found, and error responses
-- `src/models`: MongoDB customer ID mapping and demo validation
 - `src/app.js`: Express middleware and route composition
 - `src/server.js`: service initialization and HTTP startup
 - `src/index.js`: importable app entry point
@@ -149,3 +153,11 @@ The MongoDB customer API is disabled by default and is not required for normal s
 - `npm run format` formats source, tests, scripts, package metadata, and this README.
 - `npm run format:check` checks formatting without changes.
 - `npm run check` runs lint, formatting checks, and tests.
+
+The private Python Google ADK service, local PowerShell/Bash setup, and two-project
+Cloud Run deployment/IAM instructions are documented in [`agents/README.md`](agents/README.md).
+
+GA4 Measurement Protocol events and structured ADK request logs are configured
+in the Express API. See [`docs/analytics-and-logging.md`](docs/analytics-and-logging.md)
+for GA4 setup, the separate React UI integration, Cloud Logging permissions,
+and report metric guidance.

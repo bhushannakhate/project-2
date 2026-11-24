@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import sharp from "sharp";
-import { completeMediaUpload } from "../src/services/mediaStorageService.js";
+import {
+  completeMediaUpload,
+  createMediaDownloadUrl,
+} from "../src/services/mediaStorageService.js";
 
 function createStorageHarness({ imageBuffer, contentType = "image/png" }) {
   const userId = "test-user";
@@ -156,4 +159,41 @@ test("media completion removes corrupt source image data without attaching it", 
   assert.equal(harness.state.creationUpdate, null);
   assert.equal(harness.state.stagedDeleted, true);
   assert.equal(harness.state.sessionDeleted, true);
+});
+
+test("media download URLs request attachment disposition when downloading", async () => {
+  const options = {};
+  const creation = {
+    media: {
+      sourceImage: {
+        objectPath: "users/test-user/creations/test-creation/sourceImage/file",
+      },
+    },
+  };
+  const bucket = {
+    name: "test-bucket",
+    file: () => ({
+      exists: async () => [true],
+      getSignedUrl: async (value) => {
+        Object.assign(options, value);
+        return ["https://storage.example/download"];
+      },
+    }),
+  };
+
+  const result = await createMediaDownloadUrl(
+    bucket,
+    "test-user",
+    "test-creation",
+    "sourceImage",
+    creation,
+    undefined,
+    "test-creation-sourceImage.png",
+  );
+
+  assert.equal(result.downloadUrl, "https://storage.example/download");
+  assert.equal(
+    options.responseDisposition,
+    'attachment; filename="test-creation-sourceImage.png"',
+  );
 });

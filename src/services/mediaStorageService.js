@@ -147,6 +147,7 @@ export async function completeMediaUpload(
   userId,
   creationId,
   uploadId,
+  { importedFrom } = {},
 ) {
   if (!/^[\da-f-]{36}$/i.test(uploadId)) return null;
 
@@ -230,6 +231,7 @@ export async function completeMediaUpload(
     objectPath,
     contentType: finalContentType,
     sizeBytes: finalSizeBytes,
+    ...(importedFrom ? { importedFrom } : {}),
     ...(normalizedImage
       ? { width: normalizedImage.width, height: normalizedImage.height }
       : {}),
@@ -286,25 +288,39 @@ export async function createMediaDownloadUrl(
   creationId,
   mediaKind,
   creation,
+  ttlMs = DOWNLOAD_URL_TTL_MS,
+  downloadFilename,
 ) {
   if (!MEDIA_KINDS.has(mediaKind)) return null;
   const reference = creation.media?.[mediaKind];
   const expectedPrefix = `users/${userId}/creations/${creationId}/${mediaKind}/`;
   if (!reference?.objectPath?.startsWith(expectedPrefix)) return null;
 
-  const expiresAt = new Date(Date.now() + DOWNLOAD_URL_TTL_MS);
+  const expiresAt = new Date(Date.now() + ttlMs);
   const file = bucket.file(reference.objectPath);
   const [exists] = await file.exists();
   if (!exists) return null;
   const emulatorHost = process.env.STORAGE_EMULATOR_HOST;
+  const downloadOptions = new URLSearchParams({ alt: "media" });
+  if (downloadFilename) {
+    downloadOptions.set(
+      "response-content-disposition",
+      `attachment; filename="${downloadFilename}"`,
+    );
+  }
   const [downloadUrl] = emulatorHost
     ? [
-        `${emulatorHost}/v0/b/${encodeURIComponent(bucket.name)}/o/${encodeURIComponent(reference.objectPath)}?alt=media`,
+        `${emulatorHost}/v0/b/${encodeURIComponent(bucket.name)}/o/${encodeURIComponent(reference.objectPath)}?${downloadOptions}`,
       ]
     : await file.getSignedUrl({
         version: "v4",
         action: "read",
         expires: expiresAt,
+        ...(downloadFilename
+          ? {
+              responseDisposition: `attachment; filename="${downloadFilename}"`,
+            }
+          : {}),
       });
   return { downloadUrl, expiresAt: expiresAt.toISOString() };
 }

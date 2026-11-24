@@ -35,6 +35,13 @@ test("administrator access requires a verified allowlisted Firebase email", () =
     ),
     false,
   );
+  assert.equal(
+    isAdminUser(
+      { email: "rtorres32@horizon.csueastbay.edu", email_verified: true },
+      "bnakhate@horizon.csueastbay.edu,rtorres32@horizon.csueastbay.edu",
+    ),
+    true,
+  );
 });
 
 test("admin middleware denies users not on the server allowlist", async () => {

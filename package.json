@@ -1,5 +1,5 @@
 {
-  "name": "project-2-customer-api",
+  "name": "project-2-api",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -9,7 +9,6 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "seed:demo": "node scripts/seedDemoCustomers.js",
     "lint": "eslint src test scripts eslint.config.js",
     "format": "prettier --write \"src/**/*.js\" \"test/**/*.js\" \"scripts/**/*.js\" package.json eslint.config.js README.md",
     "format:check": "prettier --check \"src/**/*.js\" \"test/**/*.js\" \"scripts/**/*.js\" package.json eslint.config.js README.md",
@@ -19,13 +18,14 @@
     "firebase:check": "node scripts/checkFirebaseConfig.js"
   },
   "dependencies": {
+    "@google-cloud/logging": "^12.3.1",
     "@google-cloud/storage": "^8.4.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
     "firebase-admin": "^14.5.0",
+    "google-auth-library": "^10.0.0",
     "helmet": "^8.3.0",
-    "mongodb": "^6.18.0",
     "morgan": "^1.12.1",
     "sharp": "^0.35.5"
   },

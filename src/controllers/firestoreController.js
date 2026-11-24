@@ -29,6 +29,7 @@ import {
   importGooglePhotosPickerItem,
   listGooglePhotosPickerItems,
   pollGooglePhotosPickerSession,
+  saveGooglePhotosImage,
 } from "../services/googlePhotosService.js";
 
 export async function getCurrentUser(request, response) {
@@ -186,28 +187,61 @@ export async function postCompleteMediaUpload(request, response) {
 }
 
 export async function getMediaDownloadUrl(request, response) {
+  const unexpectedQuery = Object.keys(request.query).find(
+    (key) => key !== "download",
+  );
+  if (
+    unexpectedQuery ||
+    (request.query.download !== undefined && request.query.download !== "true")
+  ) {
+    throw new ApiError(
+      400,
+      "VALIDATION_ERROR",
+      "The media download option is invalid.",
+    );
+  }
   const { bucket, firestore } = getFirebase();
   const userId = request.firebaseUser.uid;
-  const creation = await getCreation(
-    firestore,
-    userId,
-    request.params.creationId,
-  );
+  const { creationId, mediaKind } = request.params;
+  const creation = await getCreation(firestore, userId, creationId);
   if (!creation) {
     throw new ApiError(404, "NOT_FOUND", "Creation not found.");
   }
 
+  const downloadFilename = request.query.download
+    ? `${creationId.slice(0, 64)}-${mediaKind}.${mediaExtension(creation.media?.[mediaKind]?.contentType)}`.replace(
+        /[^a-zA-Z0-9._-]/g,
+        "_",
+      )
+    : undefined;
   const download = await createMediaDownloadUrl(
     bucket,
     userId,
-    request.params.creationId,
-    request.params.mediaKind,
+    creationId,
+    mediaKind,
     creation,
+    undefined,
+    downloadFilename,
   );
   if (!download) {
     throw new ApiError(404, "NOT_FOUND", "Media not found.");
   }
   response.json(download);
+}
+
+function mediaExtension(contentType) {
+  return (
+    {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+      "audio/mpeg": "mp3",
+      "audio/mp4": "m4a",
+      "audio/ogg": "ogg",
+      "audio/wav": "wav",
+      "audio/webm": "webm",
+    }[contentType] || "bin"
+  );
 }
 
 export async function getGooglePhotosStatus(request, response) {
@@ -342,4 +376,38 @@ export async function postGooglePhotosImport(request, response) {
     loadConfig(),
   );
   response.json({ media });
+}
+
+export async function postGooglePhotosSave(request, response) {
+  const unexpected = Object.keys(request.body || {}).find(
+    (key) => key !== "mediaKind",
+  );
+  if (
+    unexpected ||
+    !["sourceImage", "outputImage"].includes(request.body?.mediaKind)
+  ) {
+    throw new ApiError(
+      400,
+      "VALIDATION_ERROR",
+      "Choose a source or generated image to save.",
+    );
+  }
+
+  const { bucket, firestore } = getFirebase();
+  const userId = request.firebaseUser.uid;
+  const { creationId } = request.params;
+  const creation = await getCreation(firestore, userId, creationId);
+  if (!creation) {
+    throw new ApiError(404, "NOT_FOUND", "Creation not found.");
+  }
+  const result = await saveGooglePhotosImage(
+    firestore,
+    bucket,
+    userId,
+    creationId,
+    request.body.mediaKind,
+    creation,
+    loadConfig(),
+  );
+  response.json(result);
 }

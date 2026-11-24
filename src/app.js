@@ -5,20 +5,12 @@ import { createCorsMiddleware } from "./config/cors.js";
 import { loadConfig } from "./config/env.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { notFound } from "./middleware/notFound.js";
-import { createDemoCustomerRoutes } from "./routes/demoCustomerRoutes.js";
 import { asyncHandler } from "./middleware/asyncHandler.js";
-import { requireFirebaseUser } from "./middleware/requireFirebaseUser.js";
-import { createRequireAdminUser } from "./middleware/requireAdminUser.js";
 import { getGooglePhotosOAuthCallback } from "./controllers/firestoreController.js";
 import firestoreRoutes from "./routes/firestoreRoutes.js";
+import { createAgentWorkflowRoutes } from "./routes/agentWorkflowRoutes.js";
 
-export function createApp({ config = loadConfig(), customerCollection } = {}) {
-  if (config.demoCustomersEnabled && !customerCollection) {
-    throw new Error(
-      "A MongoDB customer collection is required when demo customers are enabled.",
-    );
-  }
-
+export function createApp({ config = loadConfig() } = {}) {
   const app = express();
   app.disable("x-powered-by");
   app.use(helmet());
@@ -37,16 +29,8 @@ export function createApp({ config = loadConfig(), customerCollection } = {}) {
     "/api/google-photos/oauth/callback",
     asyncHandler(getGooglePhotosOAuthCallback),
   );
+  app.use("/api", createAgentWorkflowRoutes(config));
   app.use("/api", firestoreRoutes);
-  if (config.demoCustomersEnabled) {
-    app.use(
-      "/api/demo/customers",
-      requireFirebaseUser,
-      createRequireAdminUser(config.adminEmails || []),
-      createDemoCustomerRoutes(customerCollection),
-    );
-  }
-
   app.use(notFound);
   app.use(errorHandler);
   return app;

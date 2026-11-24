@@ -11,6 +11,7 @@ import {
   importGooglePhotosPickerItem,
   listGooglePhotosPickerItems,
   pollGooglePhotosPickerSession,
+  saveGooglePhotosImage,
 } from "../src/services/googlePhotosService.js";
 
 const userId = "test-user";
@@ -24,7 +25,7 @@ const config = {
   googlePhotosTokenEncryptionKey: Buffer.alloc(32, 7).toString("base64"),
 };
 const scope =
-  "https://www.googleapis.com/auth/photospicker.mediaitems.readonly";
+  "https://www.googleapis.com/auth/photospicker.mediaitems.readonly https://www.googleapis.com/auth/photoslibrary.appendonly";
 
 class FakeFirestore {
   documents = new Map();
@@ -175,7 +176,7 @@ async function connectGooglePhotos(firestore, fetchImpl) {
   return auth;
 }
 
-test("Google Photos OAuth uses the Picker scope, PKCE, one-use state, and encrypted token storage", async () => {
+test("Google Photos OAuth requests Picker and save scopes with PKCE and encrypted token storage", async () => {
   const firestore = new FakeFirestore();
   const authorization = await createGooglePhotosAuthorization(
     firestore,
@@ -221,7 +222,7 @@ test("Google Photos OAuth uses the Picker scope, PKCE, one-use state, and encryp
   assert.equal(JSON.stringify(tokenDocument).includes("refresh-secret"), false);
   assert.deepEqual(
     await getGooglePhotosConnectionStatus(firestore, userId, config),
-    { connected: true },
+    { connected: true, canSave: true },
   );
   await assert.rejects(
     completeGooglePhotosAuthorization(
@@ -236,6 +237,272 @@ test("Google Photos OAuth uses the Picker scope, PKCE, one-use state, and encryp
   );
 });
 
+test("Google Photos saves an owned image through the Library upload API", async () => {
+  const firestore = new FakeFirestore();
+  const { bucket, objects } = makeStorage();
+  await connectGooglePhotos(firestore, async () =>
+    Response.json({
+      access_token: "access-secret",
+      refresh_token: "refresh-secret",
+      expires_in: 3600,
+      scope,
+    }),
+  );
+
+  const imageBytes = await createPng();
+  const objectPath = `users/${userId}/creations/${creationId}/outputImage/generated`;
+  objects.set(objectPath, {
+    bytes: imageBytes,
+    contentType: "image/png",
+  });
+  let batchCreated = false;
+  const result = await saveGooglePhotosImage(
+    firestore,
+    bucket,
+    userId,
+    creationId,
+    "outputImage",
+    {
+      media: {
+        outputImage: { objectPath, contentType: "image/png" },
+      },
+    },
+    config,
+    async (input, options) => {
+      const url = new URL(String(input));
+      assert.equal(options.headers.Authorization, "Bearer access-secret");
+      if (url.pathname === "/v1/uploads") {
+        assert.equal(options.method, "POST");
+        assert.equal(
+          options.headers["X-Goog-Upload-Content-Type"],
+          "image/png",
+        );
+        assert.equal(options.headers["X-Goog-Upload-Protocol"], "raw");
+        assert.deepEqual(Buffer.from(options.body), imageBytes);
+        return new Response("upload-token", { status: 200 });
+      }
+      assert.equal(url.pathname, "/v1/mediaItems:batchCreate");
+      const body = JSON.parse(options.body);
+      assert.equal(
+        body.newMediaItems[0].simpleMediaItem.fileName,
+        "pinboard-studio-outputImage.png",
+      );
+      assert.equal(
+        body.newMediaItems[0].simpleMediaItem.uploadToken,
+        "upload-token",
+      );
+      batchCreated = true;
+      return Response.json({
+        newMediaItemResults: [
+          { status: { code: 0 }, mediaItem: { id: "google-photo-id" } },
+        ],
+      });
+    },
+  );
+
+  assert.equal(batchCreated, true);
+  assert.deepEqual(result, { saved: true });
+});
+
+test("Google Photos refreshes and retries the upload after a rejected access token", async () => {
+  const firestore = new FakeFirestore();
+  const { bucket, objects } = makeStorage();
+  await connectGooglePhotos(firestore, async () =>
+    Response.json({
+      access_token: "expired-access-token",
+      refresh_token: "refresh-secret",
+      expires_in: 3600,
+      scope,
+    }),
+  );
+
+  const imageBytes = await createPng();
+  const objectPath = `users/${userId}/creations/${creationId}/sourceImage/uploaded`;
+  objects.set(objectPath, {
+    bytes: imageBytes,
+    contentType: "image/png",
+  });
+  let uploadAttempts = 0;
+  let tokenRefreshes = 0;
+  const result = await saveGooglePhotosImage(
+    firestore,
+    bucket,
+    userId,
+    creationId,
+    "sourceImage",
+    {
+      media: {
+        sourceImage: { objectPath, contentType: "image/png" },
+      },
+    },
+    config,
+    async (input, options) => {
+      const url = new URL(String(input));
+      if (url.hostname === "oauth2.googleapis.com") {
+        tokenRefreshes += 1;
+        return Response.json({
+          access_token: "refreshed-access-token",
+          expires_in: 3600,
+        });
+      }
+      if (url.pathname === "/v1/uploads") {
+        uploadAttempts += 1;
+        if (options.headers.Authorization === "Bearer expired-access-token") {
+          return Response.json(
+            { error: { status: "UNAUTHENTICATED" } },
+            { status: 401 },
+          );
+        }
+        assert.equal(
+          options.headers.Authorization,
+          "Bearer refreshed-access-token",
+        );
+        return new Response("upload-token", { status: 200 });
+      }
+      assert.equal(url.pathname, "/v1/mediaItems:batchCreate");
+      assert.equal(
+        options.headers.Authorization,
+        "Bearer refreshed-access-token",
+      );
+      return Response.json({
+        newMediaItemResults: [
+          { status: { code: 0 }, mediaItem: { id: "google-photo-id" } },
+        ],
+      });
+    },
+  );
+
+  assert.equal(uploadAttempts, 2);
+  assert.equal(tokenRefreshes, 1);
+  assert.deepEqual(result, { saved: true });
+});
+
+test("Google Photos refreshes and retries media creation after a rejected access token", async () => {
+  const firestore = new FakeFirestore();
+  const { bucket, objects } = makeStorage();
+  await connectGooglePhotos(firestore, async () =>
+    Response.json({
+      access_token: "expired-access-token",
+      refresh_token: "refresh-secret",
+      expires_in: 3600,
+      scope,
+    }),
+  );
+
+  const imageBytes = await createPng();
+  const objectPath = `users/${userId}/creations/${creationId}/sourceImage/uploaded`;
+  objects.set(objectPath, {
+    bytes: imageBytes,
+    contentType: "image/png",
+  });
+  let batchAttempts = 0;
+  const result = await saveGooglePhotosImage(
+    firestore,
+    bucket,
+    userId,
+    creationId,
+    "sourceImage",
+    {
+      media: {
+        sourceImage: { objectPath, contentType: "image/png" },
+      },
+    },
+    config,
+    async (input, options) => {
+      const url = new URL(String(input));
+      if (url.hostname === "oauth2.googleapis.com") {
+        return Response.json({
+          access_token: "refreshed-access-token",
+          expires_in: 3600,
+        });
+      }
+      if (url.pathname === "/v1/uploads") {
+        return new Response("upload-token", { status: 200 });
+      }
+      assert.equal(url.pathname, "/v1/mediaItems:batchCreate");
+      batchAttempts += 1;
+      if (batchAttempts === 1) {
+        return Response.json(
+          { error: { status: "UNAUTHENTICATED" } },
+          { status: 401 },
+        );
+      }
+      assert.equal(
+        options.headers.Authorization,
+        "Bearer refreshed-access-token",
+      );
+      return Response.json({
+        newMediaItemResults: [
+          { status: { code: 0 }, mediaItem: { id: "google-photo-id" } },
+        ],
+      });
+    },
+  );
+
+  assert.equal(batchAttempts, 2);
+  assert.deepEqual(result, { saved: true });
+});
+
+test("Google Photos upload reports when the Library API is disabled", async () => {
+  const firestore = new FakeFirestore();
+  const { bucket, objects } = makeStorage();
+  await connectGooglePhotos(firestore, async () =>
+    Response.json({
+      access_token: "access-secret",
+      refresh_token: "refresh-secret",
+      expires_in: 3600,
+      scope,
+    }),
+  );
+
+  const imageBytes = await createPng();
+  const objectPath = `users/${userId}/creations/${creationId}/sourceImage/uploaded`;
+  objects.set(objectPath, {
+    bytes: imageBytes,
+    contentType: "image/png",
+  });
+
+  await assert.rejects(
+    saveGooglePhotosImage(
+      firestore,
+      bucket,
+      userId,
+      creationId,
+      "sourceImage",
+      {
+        media: {
+          sourceImage: { objectPath, contentType: "image/png" },
+        },
+      },
+      config,
+      async (input) => {
+        const url = new URL(String(input));
+        if (url.hostname === "oauth2.googleapis.com") {
+          return Response.json({
+            access_token: "access-secret",
+            expires_in: 3600,
+          });
+        }
+        return Response.json(
+          {
+            error: {
+              code: 403,
+              status: "PERMISSION_DENIED",
+              details: [{ reason: "SERVICE_DISABLED" }],
+            },
+          },
+          { status: 403 },
+        );
+      },
+    ),
+    (error) => {
+      assert.equal(error.code, "GOOGLE_PHOTOS_API_DISABLED");
+      assert.match(error.message, /Enable the Google Photos Library API/);
+      return true;
+    },
+  );
+});
+
 test("Google Photos OAuth rejects an unapproved browser origin", async () => {
   await assert.rejects(
     createGooglePhotosAuthorization(
@@ -247,6 +514,44 @@ test("Google Photos OAuth rejects an unapproved browser origin", async () => {
     ),
     /origin is not allowed/,
   );
+});
+
+test("Google Photos connection status includes save permission", async () => {
+  const firestore = new FakeFirestore();
+  assert.deepEqual(
+    await getGooglePhotosConnectionStatus(firestore, userId, config),
+    { connected: false, canSave: false },
+  );
+});
+
+test("Google Photos does not mark a Picker-only grant as save-enabled", async () => {
+  const firestore = new FakeFirestore();
+  const authorization = await createGooglePhotosAuthorization(
+    firestore,
+    userId,
+    origin,
+    config,
+    [origin],
+  );
+  const state = new URL(authorization.authorizationUrl).searchParams.get(
+    "state",
+  );
+  const result = await completeGooglePhotosAuthorization(
+    firestore,
+    { code: "authorization-code", state },
+    config,
+    async () =>
+      Response.json({
+        access_token: "access-secret",
+        refresh_token: "refresh-secret",
+        expires_in: 3600,
+        scope:
+          "https://www.googleapis.com/auth/photospicker.mediaitems.readonly",
+      }),
+  );
+
+  assert.deepEqual(result, { origin, status: "error" });
+  assert.equal(firestore.documents.has(tokenPath()), false);
 });
 
 test("Google Photos disconnect revokes the refresh token before removing encrypted tokens", async () => {
@@ -469,6 +774,7 @@ test("Picker import stages selected media directly and sends bytes through the v
   assert.equal(media.contentType, "image/png");
   assert.equal(media.width, 4);
   assert.equal(media.height, 3);
+  assert.equal(media.importedFrom, "google_photos_picker");
   assert.match(
     media.objectPath,
     new RegExp(`^users/${userId}/creations/${creationId}/sourceImage/`),

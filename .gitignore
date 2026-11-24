@@ -5,3 +5,10 @@ node_modules/
 coverage/
 credentials/*.json
 .env
+.venv/
+__pycache__/
+.pytest_cache/
+.adk/
+agents/pinboard_agents/credentials/**
+!agents/pinboard_agents/credentials/.gitkeep
+!agents/pinboard_agents/credentials/README.txt

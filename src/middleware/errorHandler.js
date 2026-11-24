@@ -17,11 +17,7 @@ export function errorHandler(error, _request, response, next) {
   let code = error.code || "INTERNAL_SERVER_ERROR";
   let message = error.message || "An unexpected error occurred.";
 
-  if (error.code === 11000) {
-    status = 409;
-    code = "CONFLICT";
-    message = "A customer with this email already exists.";
-  } else if (error.type === "entity.parse.failed") {
+  if (error.type === "entity.parse.failed") {
     status = 400;
     code = "INVALID_JSON";
     message = "Request body contains invalid JSON.";
