@@ -381,7 +381,10 @@ test(
       assert.equal(crossUserDelete.status, 404);
       const otherUsersList = await api(otherUser, "/api/creations");
       const otherUsersPage = await otherUsersList.json();
-      assert.deepEqual(otherUsersPage.creations, []);
+      assert.deepEqual(
+        otherUsersPage.creations.map((item) => item.id),
+        [otherCreation.id],
+      );
       assert.equal(otherUsersPage.nextCursor, null);
       const otherUsersCursor = await api(
         otherUser,
