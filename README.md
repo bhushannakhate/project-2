@@ -16,6 +16,26 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for the complete two-project deployment
 runbook, account/configuration setup, Docker build commands, verification, and
 rollback steps.
 
+## Recent workflow implementation and validation
+
+The current feature implementation includes the end-to-end voice workflow:
+
+- Audio can be transcribed through `POST /api/creations/:creationId/transcription`,
+  edited by the authenticated owner through the matching `PATCH` endpoint, and
+  passed to the private ADK workflow as a user-approved transcript.
+- The UI and API require explicit `consentToGemini: true` after the in-context
+  disclosure before a Gemini workflow can run. The API also validates workflow
+  instructions and keeps media, transcript, and creation ownership server-side.
+- Request IDs and structured `api_5xx`/provider-failure logs are enabled for
+  production troubleshooting. The observability policy and provisioning script
+  are in `config/monitoring/` and `scripts/provision-observability.ps1`.
+
+The completed checks are `npm run check` in both repositories, the ADK unit suite
+(`python -m unittest discover -s agents\\tests`), the Firebase-emulator
+integration test (`npm run test:integration`, with Java 21), and a successful
+combined Docker image build plus Cloud Run health check. The latest verified
+production revisions are `project-2-api-00026-pz5` and `pinboard-adk-00005-t2v`.
+
 ## Combined frontend and API image
 
 The backend `Dockerfile` builds the Vite frontend from a separate named build
