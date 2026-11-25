@@ -19,6 +19,31 @@ expire after 15 minutes, and must never be logged or sent to the frontend. A
 workflow accepts typed instructions, uploaded audio, or both; only the source
 image is always required.
 
+## Workflow contracts
+
+Express calls this private service for two operations: `/transcriptions` reads an
+owner-bound signed audio URL and returns a transcript with provider confidence,
+and `/workflows` runs the image workflow. The browser never calls either ADK
+route. Express enforces the user's Gemini disclosure consent and may pass an
+authenticated user's edited `audio_transcript` to `/workflows` (maximum 4,000
+characters), so the workflow does not have to re-transcribe an edited voice note.
+Neither route accepts Firebase credentials, Google Photos tokens, arbitrary object
+paths, or caller-supplied user IDs.
+
+## Validation
+
+Run the ADK regression suite from the backend repository root with:
+
+```powershell
+python -m unittest discover -s agents\tests
+```
+
+The Express/Firebase emulator integration suite is run separately with
+`npm run test:integration` and Java 21. The frontend uses `npm run check`, which
+runs ESLint, Vitest, and the Vite production build. These checks, the combined
+Docker image build, and a production `/api/health` request were verified for the
+current implementation.
+
 ## Files
 
 | File                                     | Purpose                                                                                                                            |
