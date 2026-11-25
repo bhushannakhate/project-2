@@ -233,14 +233,14 @@ service-account keys, ID tokens, or secret values.
 | Agent Cloud Run service         | `project2adk-514723`, `us-central1`      | [pinboard-adk service](https://console.cloud.google.com/run/detail/us-central1/pinboard-adk?project=project2adk-514723)         |
 | Agent service URL               | `project2adk-514723`                     | `https://pinboard-adk-adiuzklbmq-uc.a.run.app`                                                                                  |
 | Agent runtime service account   | `project2adk-514723`                     | `pinboard-adk-runtime@project2adk-514723.iam.gserviceaccount.com`                                                               |
-| Agent ready revision            | `project2adk-514723`, `us-central1`      | `pinboard-adk-00005-t2v`                                                                                                        |
+| Agent ready revision            | `project2adk-514723`, `us-central1`      | `pinboard-adk-00003-2tt`                                                                                                        |
 | Agent project Vertex AI         | `project2adk-514723`                     | [Vertex AI](https://console.cloud.google.com/vertex-ai?project=project2adk-514723)                                              |
 | Agent project API usage         | `project2adk-514723`                     | [Vertex AI API metrics](https://console.cloud.google.com/apis/api/aiplatform.googleapis.com/metrics?project=project2adk-514723) |
 | Agent project build history     | `project2adk-514723`, `us-central1`      | [Cloud Build history](https://console.cloud.google.com/cloud-build/builds?project=project2adk-514723)                           |
 | Agent project logs              | `project2adk-514723`                     | [Logs Explorer](https://console.cloud.google.com/logs/query?project=project2adk-514723)                                         |
 | Backend Cloud Run API           | `project-2-pinboard-2026`, `us-central1` | [project-2-api service](https://console.cloud.google.com/run/detail/us-central1/project-2-api?project=project-2-pinboard-2026)  |
 | Backend runtime service account | `project-2-pinboard-2026`                | `pinboard-api-runtime@project-2-pinboard-2026.iam.gserviceaccount.com`                                                          |
-| Backend ready revision          | `project-2-pinboard-2026`, `us-central1` | `project-2-api-00026-pz5`                                                                                                       |
+| Backend ready revision          | `project-2-pinboard-2026`, `us-central1` | `project-2-api-00023-nd6`                                                                                                       |
 | Backend Firebase project        | `project-2-pinboard-2026`                | [Firebase console](https://console.firebase.google.com/project/project-2-pinboard-2026/overview)                                |
 | Frontend Firebase Hosting       | `project-2-pinboard-2026`                | [Hosting console](https://console.firebase.google.com/project/project-2-pinboard-2026/hosting/sites)                            |
 
