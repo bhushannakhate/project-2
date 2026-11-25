@@ -379,17 +379,14 @@ export async function postGooglePhotosImport(request, response) {
 }
 
 export async function postGooglePhotosSave(request, response) {
-  const unexpected = Object.keys(request.body || {}).find(
-    (key) => key !== "mediaKind",
-  );
   if (
-    unexpected ||
-    !["sourceImage", "outputImage"].includes(request.body?.mediaKind)
+    Object.keys(request.body || {}).some((key) => key !== "mediaKind") ||
+    request.body?.mediaKind !== "outputImage"
   ) {
     throw new ApiError(
       400,
       "VALIDATION_ERROR",
-      "Choose a source or generated image to save.",
+      "Only an approved generated image can be saved to Google Photos.",
     );
   }
 
@@ -400,14 +397,84 @@ export async function postGooglePhotosSave(request, response) {
   if (!creation) {
     throw new ApiError(404, "NOT_FOUND", "Creation not found.");
   }
-  const result = await saveGooglePhotosImage(
-    firestore,
-    bucket,
-    userId,
-    creationId,
-    request.body.mediaKind,
-    creation,
-    loadConfig(),
-  );
-  response.json(result);
+  if (creation.reviewStatus !== "approved") {
+    throw new ApiError(
+      409,
+      "CREATION_NOT_APPROVED",
+      "Approve the generated creation before saving it to Google Photos.",
+    );
+  }
+
+  let alreadySaved = false;
+  await firestore.runTransaction(async (transaction) => {
+    const reference = firestore
+      .collection("users")
+      .doc(userId)
+      .collection("creations")
+      .doc(creationId);
+    const snapshot = await transaction.get(reference);
+    if (!snapshot.exists || snapshot.data().isDeleted) {
+      throw new ApiError(404, "NOT_FOUND", "Creation not found.");
+    }
+    const current = snapshot.data();
+    if (current.reviewStatus !== "approved") {
+      throw new ApiError(
+        409,
+        "CREATION_NOT_APPROVED",
+        "Approve the generated creation before saving it to Google Photos.",
+      );
+    }
+    if (current.googlePhotosExport?.status === "completed") {
+      alreadySaved = true;
+      return;
+    }
+    if (current.googlePhotosExport?.status === "pending") {
+      throw new ApiError(
+        409,
+        "GOOGLE_PHOTOS_EXPORT_IN_PROGRESS",
+        "This creation is already being saved to Google Photos.",
+      );
+    }
+    transaction.update(reference, {
+      googlePhotosExport: {
+        status: "pending",
+        mediaKind: "outputImage",
+        startedAt: new Date().toISOString(),
+      },
+    });
+  });
+
+  if (alreadySaved) {
+    response.json({ saved: true, alreadySaved: true });
+    return;
+  }
+
+  try {
+    const result = await saveGooglePhotosImage(
+      firestore,
+      bucket,
+      userId,
+      creationId,
+      "outputImage",
+      creation,
+      loadConfig(),
+    );
+    await updateCreation(firestore, userId, creationId, {
+      googlePhotosExport: {
+        status: "completed",
+        mediaKind: "outputImage",
+        completedAt: new Date().toISOString(),
+      },
+    });
+    response.json(result);
+  } catch (error) {
+    await updateCreation(firestore, userId, creationId, {
+      googlePhotosExport: {
+        status: "failed",
+        mediaKind: "outputImage",
+        failedAt: new Date().toISOString(),
+      },
+    });
+    throw error;
+  }
 }
