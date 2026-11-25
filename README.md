@@ -26,6 +26,13 @@ The current feature implementation includes the end-to-end voice workflow:
 - The UI and API require explicit `consentToGemini: true` after the in-context
   disclosure before a Gemini workflow can run. The API also validates workflow
   instructions and keeps media, transcript, and creation ownership server-side.
+- Generated results now enter a server-enforced review state. An owner can
+  approve a result or request exactly one revision through
+  `POST /api/creations/:creationId/review`; revision history keeps the prior
+  output in private storage for auditability.
+- Google Photos export is limited to an approved generated output, requires a
+  separate confirmation, and records an idempotent export state so retries do
+  not create another copy without a new explicit action.
 - Request IDs and structured `api_5xx`/provider-failure logs are enabled for
   production troubleshooting. The observability policy and provisioning script
   are in `config/monitoring/` and `scripts/provision-observability.ps1`.
@@ -221,6 +228,7 @@ All Firestore endpoints require `Authorization: Bearer <Firebase ID token>`.
 | `POST`   | `/api/creations/:creationId/media/uploads/:uploadId/complete`                                        | Validate and attach an uploaded file to the creation.                             |
 | `GET`    | `/api/creations/:creationId/media/:mediaKind/download-url`                                           | Get a short-lived URL for owned media.                                            |
 | `POST`   | `/api/creations/:creationId/agent-workflows`                                                         | Run the private ADK workflow using the creation's uploaded image and audio.       |
+| `POST`   | `/api/creations/:creationId/review`                                                                  | Approve a generated result or request its one permitted revision.                 |
 | `POST`   | `/api/creations/:creationId/transcription`                                                           | Transcribe the owned uploaded audio and save the provider result.                 |
 | `PATCH`  | `/api/creations/:creationId/transcription`                                                           | Save the authenticated user's edited transcription.                               |
 | `GET`    | `/api/google-photos/connection`                                                                      | Get the current user's Google Photos connection status.                           |
@@ -256,6 +264,13 @@ After an audio upload is completed, call `POST /api/creations/:creationId/transc
 to produce a transcript and provider confidence value. The user can edit it with
 the PATCH endpoint before starting the Gemini workflow. Audio and transcript data
 remain scoped to the authenticated creation.
+
+After the workflow returns a generated output, send
+`{ "action": "approve" }` to the review endpoint, or send
+`{ "action": "request_revision", "instruction": "..." }` once. The server
+rejects later revision requests and keeps the prior output in the creation's
+private `outputHistory` path. Only an approved generated output can be exported
+to Google Photos; source images cannot be exported through that route.
 
 Set `MEDIA_STORAGE_BUCKET` to the dedicated private bucket name. The bucket must have public access prevention and uniform bucket-level access enabled. `config/media-bucket-cors.json` and `config/media-bucket-lifecycle.json` configure direct browser uploads and one-day staging cleanup. The Cloud Run runtime service account needs object-level bucket access and permission to sign URLs. Never make this bucket public.
 

@@ -23,6 +23,7 @@ import {
 import {
   postCreationTranscription,
   patchCreationTranscription,
+  postCreationReview,
 } from "../controllers/agentWorkflowController.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { requireFirebaseUser } from "../middleware/requireFirebaseUser.js";
@@ -35,6 +36,7 @@ import {
   validateTranscriptionEdit,
   validateTranscriptionRequest,
 } from "../middleware/validateTranscription.js";
+import { validateCreationReview } from "../middleware/validateCreationReview.js";
 import { loadConfig } from "../config/env.js";
 import {
   validateMediaKind,
@@ -106,6 +108,13 @@ router.patch(
   validateBody,
   validateTranscriptionEdit,
   asyncHandler(patchCreationTranscription),
+);
+router.post(
+  "/creations/:creationId/review",
+  requireFirebaseUser,
+  validateBody,
+  validateCreationReview,
+  asyncHandler(postCreationReview),
 );
 router.patch(
   "/users/me",

@@ -177,6 +177,18 @@ async function saveOutputMedia(firestore, bucket, userId, creationId, output) {
   return media;
 }
 
+async function archivePreviousOutputMedia(bucket, userId, creationId, media) {
+  const expectedPrefix = `users/${userId}/creations/${creationId}/outputImage/`;
+  if (!media?.objectPath?.startsWith(expectedPrefix)) return null;
+  const archivePath = `users/${userId}/creations/${creationId}/outputHistory/${randomUUID()}`;
+  await bucket.file(media.objectPath).copy(bucket.file(archivePath));
+  return {
+    ...media,
+    objectPath: archivePath,
+    archivedAt: new Date().toISOString(),
+  };
+}
+
 export async function postAgentWorkflow(request, response, config) {
   const requestId = randomUUID();
   const workflowStartedAt = Date.now();
@@ -207,7 +219,27 @@ export async function postAgentWorkflow(request, response, config) {
       "The selected audio recording is unavailable. Re-upload it or run with written instructions only.",
     );
   }
-  const instructions = request.agentInstructions;
+  const isUserRevision = creation.reviewStatus === "revision_requested";
+  if (
+    creation.reviewStatus === "approved" ||
+    creation.reviewStatus === "revised"
+  ) {
+    throw new ApiError(
+      409,
+      "REVIEW_COMPLETE",
+      "This creation has already completed its review workflow.",
+    );
+  }
+  if (isUserRevision && creation.reviewRevisionCount !== 0) {
+    throw new ApiError(
+      409,
+      "REVISION_LIMIT_REACHED",
+      "Only one revision can be generated for a creation.",
+    );
+  }
+  const instructions = isUserRevision
+    ? `${creation.instructions || ""}\n\nRevision request: ${request.agentInstructions}`.trim()
+    : request.agentInstructions;
   if (!instructions && !audio) {
     throw new ApiError(
       400,
@@ -264,6 +296,14 @@ export async function postAgentWorkflow(request, response, config) {
         : {}),
     });
     const output = summarizeAgentResult(responsePayload);
+    const archivedOutput = isUserRevision
+      ? await archivePreviousOutputMedia(
+          bucket,
+          userId,
+          creationId,
+          creation.media?.outputImage,
+        )
+      : null;
     const media = await saveOutputMedia(
       firestore,
       bucket,
@@ -282,11 +322,32 @@ export async function postAgentWorkflow(request, response, config) {
       audioTranscript: output.audioTranscript,
       audioConfidence: output.audioConfidence,
       geminiConsentAt: new Date().toISOString(),
+      reviewStatus: isUserRevision ? "revised" : "pending",
     };
+    const reviewHistory = isUserRevision
+      ? [
+          ...(creation.reviewHistory || []),
+          {
+            output: archivedOutput,
+            revisionInstruction: request.agentInstructions,
+            archivedAt: new Date().toISOString(),
+          },
+        ]
+      : [];
     await updateCreation(firestore, userId, creationId, {
       status: "completed",
       revisionCount: output.revisionCount,
-      instructions,
+      reviewStatus: isUserRevision ? "revised" : "pending",
+      reviewRevisionCount: isUserRevision ? 1 : 0,
+      review: {
+        ...(creation.review || {}),
+        status: isUserRevision ? "revised" : "pending",
+        ...(isUserRevision
+          ? { revisionInstruction: request.agentInstructions }
+          : {}),
+      },
+      reviewHistory,
+      instructions: isUserRevision ? creation.instructions : instructions,
       agentWorkflow: agentMetadata,
     });
     const updatedCreation = await getCreation(firestore, userId, creationId);
@@ -457,4 +518,79 @@ export async function patchCreationTranscription(request, response) {
       edited: true,
     },
   });
+}
+
+function assertReviewableCreation(creation, userId, creationId) {
+  const outputPath = creation.media?.outputImage?.objectPath;
+  const expectedPrefix = `users/${userId}/creations/${creationId}/outputImage/`;
+  if (
+    creation.status !== "completed" ||
+    !outputPath?.startsWith(expectedPrefix) ||
+    !["pending", "revised"].includes(creation.reviewStatus)
+  ) {
+    throw new ApiError(
+      409,
+      "REVIEW_UNAVAILABLE",
+      "This creation does not have a generated result waiting for review.",
+    );
+  }
+}
+
+export async function postCreationReview(request, response) {
+  const { firestore } = getFirebase();
+  const userId = request.firebaseUser.uid;
+  const { creationId } = request.params;
+  const creationReference = firestore
+    .collection("users")
+    .doc(userId)
+    .collection("creations")
+    .doc(creationId);
+  const now = new Date().toISOString();
+
+  await firestore.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(creationReference);
+    if (!snapshot.exists || snapshot.data().isDeleted) {
+      throw new ApiError(404, "NOT_FOUND", "Creation not found.");
+    }
+    const creation = { id: snapshot.id, ...snapshot.data() };
+    assertReviewableCreation(creation, userId, creationId);
+
+    if (request.reviewAction === "request_revision") {
+      if (creation.reviewStatus !== "pending") {
+        throw new ApiError(
+          409,
+          "REVISION_LIMIT_REACHED",
+          "Only one revision can be requested for a creation.",
+        );
+      }
+      transaction.update(creationReference, {
+        reviewStatus: "revision_requested",
+        review: {
+          ...(creation.review || {}),
+          status: "revision_requested",
+          revisionInstruction: request.reviewInstruction,
+          revisionRequestedAt: now,
+        },
+        updatedAt: now,
+      });
+      return;
+    }
+
+    const reviewStatus =
+      request.reviewAction === "reject" ? "rejected" : "approved";
+    transaction.update(creationReference, {
+      reviewStatus,
+      review: {
+        ...(creation.review || {}),
+        status: reviewStatus,
+        ...(reviewStatus === "rejected"
+          ? { rejectedAt: now }
+          : { approvedAt: now }),
+      },
+      updatedAt: now,
+    });
+  });
+
+  const updatedCreation = await getCreation(firestore, userId, creationId);
+  response.json({ creation: updatedCreation });
 }
