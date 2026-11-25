@@ -117,3 +117,70 @@ export async function invokeAdkWorkflow(config, workflow, dependencies = {}) {
     });
   }
 }
+
+export async function invokeAdkTranscription(
+  config,
+  transcriptionRequest,
+  dependencies = {},
+) {
+  const serviceUrl = getAdkServiceUrl(config);
+  const endpoint = `${serviceUrl}/transcriptions`;
+  const fetchImpl = dependencies.fetchImpl || fetch;
+  const logApiCall = dependencies.logApiCall || logExternalApiCall;
+  const startedAt = Date.now();
+  let outcome = "failure";
+  let statusCode;
+
+  try {
+    if (config.nodeEnv === "production") {
+      const client = await new GoogleAuth().getIdTokenClient(serviceUrl);
+      const response = await client.request({
+        url: endpoint,
+        method: "POST",
+        data: transcriptionRequest,
+        timeout: REQUEST_TIMEOUT_MS,
+        maxRedirects: 0,
+      });
+      statusCode = response.status;
+      outcome = "success";
+      return response.data;
+    }
+
+    const response = await fetchImpl(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(transcriptionRequest),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      redirect: "error",
+    });
+    statusCode = response.status;
+    if (!response.ok) {
+      if (response.status === 429) throw agentCapacityError();
+      throw new ApiError(
+        502,
+        "TRANSCRIPTION_UNAVAILABLE",
+        "The transcription service could not process this recording.",
+      );
+    }
+    const result = await response.json();
+    outcome = "success";
+    return result;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    if (error.response?.status === 429) throw agentCapacityError();
+    throw new ApiError(
+      502,
+      "TRANSCRIPTION_UNAVAILABLE",
+      "The transcription service could not process this recording.",
+    );
+  } finally {
+    await logApiCall({
+      service: "Google ADK transcription",
+      operation: "transcribe_audio",
+      outcome,
+      statusCode: statusCode || undefined,
+      durationMs: Date.now() - startedAt,
+      requestId: transcriptionRequest.request_id,
+    });
+  }
+}

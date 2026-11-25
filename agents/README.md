@@ -181,106 +181,259 @@ media-URL separation. The Express integration test separately proves another
 user's creation returns 404. Never pass user IDs, media paths, or approval
 decisions from a browser.
 
-## Two-project Cloud Run deployment
+## Production deployment: two Google Cloud projects
 
-Do not run these commands until the project owners have supplied the placeholder
-values. The ADK project owns only the private service and its Vertex AI access.
-The teammate's project continues to own Firebase Auth, Firestore, Google Photos
-OAuth, Express, and the media bucket.
+The workflow has three separate parts:
 
-### ADK project owner
+1. The frontend calls the Express API; it never calls ADK directly.
+2. Express checks Firebase authentication and creation ownership, then calls the
+   private ADK service with a Google-signed identity token.
+3. ADK calls Vertex AI Gemini using its Cloud Run runtime identity, reads only
+   the signed source/audio URLs provided by Express, and returns the result.
+   Express stores the output in its own media bucket and Firestore.
 
-Enable the required APIs and grant the ADK runtime service account only the model
-invocation role in the ADK project:
+The ADK service is **Cloud Run**, not a Vertex AI Agent Engine deployment.
+Vertex AI is the model API used by the agents. API activity in Vertex AI does not
+mean that an Agent Engine resource exists.
 
-```bash
-gcloud services enable run.googleapis.com aiplatform.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com --project=<ADK_PROJECT_ID>
-gcloud projects add-iam-policy-binding <ADK_PROJECT_ID> --member="serviceAccount:<ADK_RUNTIME_SERVICE_ACCOUNT_EMAIL>" --role="roles/aiplatform.user"
-gcloud projects add-iam-policy-binding <ADK_PROJECT_ID> --member="serviceAccount:<ADK_RUNTIME_SERVICE_ACCOUNT_EMAIL>" --role="roles/logging.logWriter"
-```
+### Verified deployment and console links
 
-For local development, the ADK project owner may grant the developer's ADC
-identity the same model invocation role if it does not already have access:
+These are the observed resource values; confirm them in the consoles before
+changing IAM or deploying. The partner should run commands against the backend
+project using an account that has permission there. Do not exchange passwords,
+service-account keys, ID tokens, or secret values.
 
-```bash
-gcloud projects add-iam-policy-binding <ADK_PROJECT_ID> --member="user:<LOCAL_DEVELOPER_EMAIL>" --role="roles/aiplatform.user"
-```
+| Resource                        | Project / region                         | Link or value                                                                                                                   |
+| ------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Agent Cloud Run service         | `project2adk-514723`, `us-central1`      | [pinboard-adk service](https://console.cloud.google.com/run/detail/us-central1/pinboard-adk?project=project2adk-514723)         |
+| Agent service URL               | `project2adk-514723`                     | `https://pinboard-adk-adiuzklbmq-uc.a.run.app`                                                                                  |
+| Agent runtime service account   | `project2adk-514723`                     | `pinboard-adk-runtime@project2adk-514723.iam.gserviceaccount.com`                                                               |
+| Agent ready revision            | `project2adk-514723`, `us-central1`      | `pinboard-adk-00003-2tt`                                                                                                        |
+| Agent project Vertex AI         | `project2adk-514723`                     | [Vertex AI](https://console.cloud.google.com/vertex-ai?project=project2adk-514723)                                              |
+| Agent project API usage         | `project2adk-514723`                     | [Vertex AI API metrics](https://console.cloud.google.com/apis/api/aiplatform.googleapis.com/metrics?project=project2adk-514723) |
+| Agent project build history     | `project2adk-514723`, `us-central1`      | [Cloud Build history](https://console.cloud.google.com/cloud-build/builds?project=project2adk-514723)                           |
+| Agent project logs              | `project2adk-514723`                     | [Logs Explorer](https://console.cloud.google.com/logs/query?project=project2adk-514723)                                         |
+| Backend Cloud Run API           | `project-2-pinboard-2026`, `us-central1` | [project-2-api service](https://console.cloud.google.com/run/detail/us-central1/project-2-api?project=project-2-pinboard-2026)  |
+| Backend runtime service account | `project-2-pinboard-2026`                | `pinboard-api-runtime@project-2-pinboard-2026.iam.gserviceaccount.com`                                                          |
+| Backend ready revision          | `project-2-pinboard-2026`, `us-central1` | `project-2-api-00023-nd6`                                                                                                       |
+| Backend Firebase project        | `project-2-pinboard-2026`                | [Firebase console](https://console.firebase.google.com/project/project-2-pinboard-2026/overview)                                |
+| Frontend Firebase Hosting       | `project-2-pinboard-2026`                | [Hosting console](https://console.firebase.google.com/project/project-2-pinboard-2026/hosting/sites)                            |
 
-From the backend repository root, deploy the service privately. Supply the actual
-supported model IDs and the teammate's media bucket name; these values are
-configuration, not credentials.
+Verified 2026-11-24: the agent service is ready on revision
+`pinboard-adk-00003-2tt`, configured for `global` Vertex AI location and the
+models in `pinboard_agents/.env.example`. Its runtime account has
+`roles/aiplatform.user` and `roles/logging.logWriter`. The service is private;
+its only Cloud Run invoker is
+the backend runtime service account listed above, which is also the only caller
+allowed by the application's ID-token check. `ADK_EXPECTED_AUDIENCE` is set to
+the agent URL and the backend Cloud Run service has `ADK_AGENT_URL` set to that
+same URL. The backend is ready on revision `project-2-api-00023-nd6`, and
+`/api/health` returned HTTP 200 after configuration. Do not treat an
+unauthenticated browser/curl request to the agent's `/healthz` as a health
+check: Cloud Run IAM blocks it before the app endpoint is reached.
 
-```bash
-gcloud run deploy <ADK_SERVICE_NAME> --source agents --project=<ADK_PROJECT_ID> --region=<ADK_REGION> --service-account=<ADK_RUNTIME_SERVICE_ACCOUNT_EMAIL> --no-allow-unauthenticated --concurrency=2 --memory=1Gi --timeout=900 --set-env-vars="NODE_ENV=production,GOOGLE_CLOUD_PROJECT=<ADK_PROJECT_ID>,GOOGLE_CLOUD_LOCATION=<VERTEX_AI_REGION_OR_GLOBAL>,GOOGLE_GENAI_USE_VERTEXAI=TRUE,GEMINI_TEXT_MODEL=<SUPPORTED_GEMINI_TEXT_MODEL>,GEMINI_IMAGE_MODEL=<SUPPORTED_VERTEX_AI_IMAGE_MODEL>,MEDIA_STORAGE_BUCKET=<TEAM_MEDIA_BUCKET_NAME>"
-```
+The previous agent revision predated the optional-audio workflow input change
+and rejected text-only requests with HTTP 422. Revision `pinboard-adk-00003-2tt`
+contains that fix. For code-only redeploys, build and push the agent Docker
+image, then deploy with `--image` and no environment/IAM overrides so the
+private caller configuration remains intact.
 
-Once deployed, configure the exact Cloud Run URL as the accepted token audience and
-the Express caller's runtime service account as the only accepted caller:
+### 1. Confirm both project owners and runtime identities
 
-```bash
-ADK_URL="$(gcloud run services describe <ADK_SERVICE_NAME> --project=<ADK_PROJECT_ID> --region=<ADK_REGION> --format='value(status.url)')"
-gcloud run services update <ADK_SERVICE_NAME> --project=<ADK_PROJECT_ID> --region=<ADK_REGION> --update-env-vars="ADK_EXPECTED_AUDIENCE=${ADK_URL},ADK_EXPECTED_CALLER_SERVICE_ACCOUNT=<BACKEND_CALLER_SERVICE_ACCOUNT_EMAIL>"
-```
+The agent owner performs steps 1–3 in `project2adk-514723`. The backend owner
+performs step 4 in `project-2-pinboard-2026`. Each owner signs in locally; do
+not send credentials to the other owner.
 
-Grant that backend runtime service account Cloud Run invoker on this one service:
-
-```bash
-gcloud run services add-iam-policy-binding <ADK_SERVICE_NAME> --project=<ADK_PROJECT_ID> --region=<ADK_REGION> --member="serviceAccount:<BACKEND_CALLER_SERVICE_ACCOUNT_EMAIL>" --role="roles/run.invoker"
-```
-
-The ADK project owner runs the API, deployment, audience, and invoker commands.
-Do not allow unauthenticated access or deploy the development UI.
-
-### Backend project owner
-
-Set `ADK_AGENT_URL` on the Express Cloud Run service to the ADK service URL returned
-by deployment. The existing Express runtime service account is the caller; do not
-put an ID token, service-account key, Firebase credential, or ADK URL in React.
-
-```bash
-gcloud run services update <BACKEND_SERVICE_NAME> --project=<BACKEND_PROJECT_ID> --region=<BACKEND_REGION> --update-env-vars="ADK_AGENT_URL=<ADK_CLOUD_RUN_SERVICE_URL>"
-```
-
-The backend project owner runs this configuration command and confirms the
-existing Express runtime identity. No Photos OAuth token is sent to ADK.
-
-### Cross-project data permissions
-
-With the signed-URL design above, ADK has **no IAM access to the teammate's
-Firestore or Cloud Storage bucket**. Express performs ownership checks and issues
-15-minute read-only URLs for only the current creation's validated source image
-and user-uploaded audio. The ADK service validates the URL host, bucket, user ID,
-creation ID, and media kind before fetching. Express saves generated media and
-durable metadata through its existing upload-completion and Firestore helpers.
-The only required cross-project grant is `roles/run.invoker` on the ADK service
-for the Express runtime service account.
-
-If a later design removes signed URLs and gives ADK direct media access, grant its
-runtime service account `roles/storage.objectViewer` on the specific media bucket
-only (not the whole backend project). Direct Firestore access is not needed; if
-approved in a future design, grant only the narrow read role
-`roles/datastore.viewer` on the specific Firestore database. Do not grant ADK
-`roles/datastore.user` or project-wide Editor for this workflow.
-
-The backend project owner would run these optional bindings only after approving
-a design that gives ADK direct read access; they are **not required** for this
-signed-URL workflow:
-
-```bash
-gcloud storage buckets add-iam-policy-binding gs://<TEAM_MEDIA_BUCKET_NAME> --member="serviceAccount:<ADK_RUNTIME_SERVICE_ACCOUNT_EMAIL>" --role="roles/storage.objectViewer"
-gcloud firestore databases add-iam-policy-binding <DATABASE_ID> --project=<BACKEND_PROJECT_ID> --member="serviceAccount:<ADK_RUNTIME_SERVICE_ACCOUNT_EMAIL>" --role="roles/datastore.viewer"
-```
-
-### PowerShell Cloud Run commands
-
-The same commands can be run in PowerShell with quoted placeholders:
+Use separate named gcloud configurations so commands in the two projects do
+not accidentally use the other account. Configuration names are local to the
+computer; create them once. Substitute each owner's Google account email:
 
 ```powershell
-gcloud services enable run.googleapis.com aiplatform.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com --project=<ADK_PROJECT_ID>
-gcloud projects add-iam-policy-binding <ADK_PROJECT_ID> --member="serviceAccount:<ADK_RUNTIME_SERVICE_ACCOUNT_EMAIL>" --role="roles/aiplatform.user"
-gcloud run deploy <ADK_SERVICE_NAME> --source agents --project=<ADK_PROJECT_ID> --region=<ADK_REGION> --service-account=<ADK_RUNTIME_SERVICE_ACCOUNT_EMAIL> --no-allow-unauthenticated --concurrency=2 --memory=1Gi --timeout=900 --set-env-vars="NODE_ENV=production,GOOGLE_CLOUD_PROJECT=<ADK_PROJECT_ID>,GOOGLE_CLOUD_LOCATION=<VERTEX_AI_REGION_OR_GLOBAL>,GOOGLE_GENAI_USE_VERTEXAI=TRUE,GEMINI_TEXT_MODEL=<SUPPORTED_GEMINI_TEXT_MODEL>,GEMINI_IMAGE_MODEL=<SUPPORTED_VERTEX_AI_IMAGE_MODEL>,MEDIA_STORAGE_BUCKET=<TEAM_MEDIA_BUCKET_NAME>"
-$AdkUrl = gcloud run services describe <ADK_SERVICE_NAME> --project=<ADK_PROJECT_ID> --region=<ADK_REGION> --format="value(status.url)"
-gcloud run services update <ADK_SERVICE_NAME> --project=<ADK_PROJECT_ID> --region=<ADK_REGION> --update-env-vars="ADK_EXPECTED_AUDIENCE=$AdkUrl,ADK_EXPECTED_CALLER_SERVICE_ACCOUNT=<BACKEND_CALLER_SERVICE_ACCOUNT_EMAIL>"
-gcloud run services add-iam-policy-binding <ADK_SERVICE_NAME> --project=<ADK_PROJECT_ID> --region=<ADK_REGION> --member="serviceAccount:<BACKEND_CALLER_SERVICE_ACCOUNT_EMAIL>" --role="roles/run.invoker"
-gcloud run services update <BACKEND_SERVICE_NAME> --project=<BACKEND_PROJECT_ID> --region=<BACKEND_REGION> --update-env-vars="ADK_AGENT_URL=$AdkUrl"
+gcloud.cmd config configurations list
+gcloud.cmd config configurations create partner-backend --activate
+gcloud.cmd auth login <BACKEND_OWNER_EMAIL>
+gcloud.cmd config set account <BACKEND_OWNER_EMAIL>
+gcloud.cmd config set project project-2-pinboard-2026
+gcloud.cmd config configurations create adk-owner --activate
+gcloud.cmd auth login <ADK_OWNER_EMAIL>
+gcloud.cmd config set account <ADK_OWNER_EMAIL>
+gcloud.cmd config set project project2adk-514723
 ```
+
+If a named configuration already exists, do not create it again. Activate it
+with `gcloud.cmd config configurations activate <CONFIG_NAME>` and set its
+account and project. Use `--configuration=adk-owner` on every agent-project
+command and `--configuration=partner-backend` on every backend-project
+command, even when running them in separate terminal tabs. For example:
+
+```powershell
+gcloud.cmd --configuration=adk-owner projects describe project2adk-514723
+gcloud.cmd --configuration=partner-backend projects describe project-2-pinboard-2026
+```
+
+Confirm the agent project and existing service:
+
+```powershell
+gcloud.cmd --configuration=adk-owner run services describe pinboard-adk --project=project2adk-514723 --region=us-central1
+```
+
+Confirm the agent service account has Vertex AI access:
+
+```powershell
+gcloud.cmd --configuration=adk-owner projects get-iam-policy project2adk-514723 --flatten="bindings[].members" --filter="bindings.members:pinboard-adk-runtime@project2adk-514723.iam.gserviceaccount.com" --format="table(bindings.role)"
+```
+
+It needs `roles/aiplatform.user` for Gemini and `roles/logging.logWriter` for
+agent model-call logs. If logging is not already granted, the agent project
+owner can grant it:
+
+```powershell
+gcloud.cmd --configuration=adk-owner projects add-iam-policy-binding project2adk-514723 --member="serviceAccount:pinboard-adk-runtime@project2adk-514723.iam.gserviceaccount.com" --role="roles/logging.logWriter"
+```
+
+The backend owner obtains the Express service's runtime identity and gives the
+email address (not a key) to the agent owner:
+
+```powershell
+gcloud.cmd --configuration=partner-backend run services describe project-2-api --project=project-2-pinboard-2026 --region=us-central1 --format="value(spec.template.spec.serviceAccountName)"
+```
+
+If that command reports the project or service is unavailable, confirm the
+backend owner is signed into the correct Google account and that
+`project-2-api` is in `us-central1`. Do not guess the runtime service account.
+
+### 2. Deploy or update the private agent service
+
+Run from the backend repository root (`$env:USERPROFILE\WebstormProjects\project-2mongo`)
+using the agent-project owner account. `--source agents` builds the tracked
+`agents\Dockerfile`; it does not deploy `.venv` or the local `.env`. The existing
+service name, project, region, account, model IDs, and media bucket are supplied
+below. This creates a new Cloud Run revision and leaves the previous revision
+available for rollback.
+
+First confirm required APIs and runtime identity:
+
+```powershell
+gcloud.cmd --configuration=adk-owner services enable run.googleapis.com aiplatform.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com --project=project2adk-514723
+gcloud.cmd --configuration=adk-owner iam service-accounts describe pinboard-adk-runtime@project2adk-514723.iam.gserviceaccount.com --project=project2adk-514723
+```
+
+Deploy privately; do **not** add `--allow-unauthenticated`:
+
+```powershell
+cd "$env:USERPROFILE\WebstormProjects\project-2mongo"
+gcloud.cmd --configuration=adk-owner run deploy pinboard-adk --source agents --project=project2adk-514723 --region=us-central1 --service-account=pinboard-adk-runtime@project2adk-514723.iam.gserviceaccount.com --no-allow-unauthenticated --concurrency=2 --memory=1Gi --timeout=900 --max=3 --update-env-vars="NODE_ENV=production,GOOGLE_CLOUD_PROJECT=project2adk-514723,GOOGLE_CLOUD_LOCATION=global,GOOGLE_GENAI_USE_VERTEXAI=TRUE,GEMINI_TEXT_MODEL=gemini-3.5-flash,GEMINI_IMAGE_MODEL=gemini-3.1-flash-image,MEDIA_STORAGE_BUCKET=project-2-pinboard-2026-media"
+```
+
+Use `--update-env-vars`, not `--set-env-vars`, when updating existing service
+settings: replacing the full environment can remove
+`ADK_EXPECTED_AUDIENCE` and `ADK_EXPECTED_CALLER_SERVICE_ACCOUNT`, breaking
+authenticated backend calls.
+
+If Cloud Run reports that the deployer cannot act as the runtime identity, the
+agent project owner must grant the deployer `roles/iam.serviceAccountUser` on
+the named runtime service account. Use the actual model IDs supported and
+enabled for the agent project; check [Vertex AI Model Garden](https://console.cloud.google.com/vertex-ai/model-garden?project=project2adk-514723)
+and [Vertex AI quotas](https://console.cloud.google.com/iam-admin/quotas?project=project2adk-514723).
+
+### 3. Allow only the partner's backend service to invoke ADK
+
+Set the PowerShell variable to the runtime service-account email the partner
+retrieved in step 1. The following updates the agent application's caller
+allowlist and grants Cloud Run invocation on this service only:
+
+```powershell
+$BackendCaller = "<BACKEND_RUNTIME_SERVICE_ACCOUNT_EMAIL>"
+$AdkUrl = gcloud.cmd --configuration=adk-owner run services describe pinboard-adk --project=project2adk-514723 --region=us-central1 --format="value(status.url)"
+if (-not $AdkUrl) { throw "Could not read the deployed ADK Cloud Run URL." }
+gcloud.cmd --configuration=adk-owner run services update pinboard-adk --project=project2adk-514723 --region=us-central1 --update-env-vars="ADK_EXPECTED_AUDIENCE=$AdkUrl,ADK_EXPECTED_CALLER_SERVICE_ACCOUNT=$BackendCaller"
+gcloud.cmd --configuration=adk-owner run services add-iam-policy-binding pinboard-adk --project=project2adk-514723 --region=us-central1 --member="serviceAccount:$BackendCaller" --role="roles/run.invoker"
+```
+
+Check that the only intended invoker is the partner's backend runtime account:
+
+```powershell
+gcloud.cmd --configuration=adk-owner run services get-iam-policy pinboard-adk --project=project2adk-514723 --region=us-central1
+gcloud.cmd --configuration=adk-owner run services describe pinboard-adk --project=project2adk-514723 --region=us-central1 --format="yaml(status.url,status.latestReadyRevisionName,status.conditions,spec.template.spec.serviceAccountName,spec.template.spec.containers[0].env)"
+```
+
+Keep the service private. Do not deploy the ADK development UI in production.
+The direct health endpoint is `https://<ADK_CLOUD_RUN_URL>/healthz`, but an
+unauthenticated browser/curl request is expected to be rejected by Cloud Run.
+The end-to-end authenticated workflow in step 5 is the meaningful health check.
+
+### 4. Configure the partner's backend Cloud Run service
+
+The backend owner signs into the backend project and sets the ADK service URL
+as a **server-side Cloud Run environment variable**. This creates a new API
+revision. It does not expose the URL or credentials to the frontend.
+
+```powershell
+gcloud.cmd --configuration=partner-backend run services describe project-2-api --project=project-2-pinboard-2026 --region=us-central1 --format="value(spec.template.spec.serviceAccountName)"
+$AdkUrl = "https://pinboard-adk-adiuzklbmq-uc.a.run.app"
+gcloud.cmd --configuration=partner-backend run services update project-2-api --project=project-2-pinboard-2026 --region=us-central1 --update-env-vars="ADK_AGENT_URL=$AdkUrl"
+gcloud.cmd --configuration=partner-backend run services describe project-2-api --project=project-2-pinboard-2026 --region=us-central1 --format="yaml(status.url,status.latestReadyRevisionName,status.conditions,spec.template.spec.serviceAccountName,spec.template.spec.containers[0].env)"
+```
+
+The configured backend service account must exactly match
+`ADK_EXPECTED_CALLER_SERVICE_ACCOUNT` and have `roles/run.invoker` on the agent
+service. Cloud Run's service identity obtains the Google-signed ID token; do
+not create or distribute a service-account key. The backend project owner can
+check health and logs at [the API service page](https://console.cloud.google.com/run/detail/us-central1/project-2-api?project=project-2-pinboard-2026)
+and [backend Logs Explorer](https://console.cloud.google.com/logs/query?project=project-2-pinboard-2026).
+
+### 5. Redeploy and test the frontend workflow
+
+The frontend lives in the separate `Web-SystemPROJECT2FRONTEND` repository.
+Its `.firebaserc` targets `project-2-pinboard-2026`; its build-time
+`VITE_API_BASE_URL` must point to `https://project-2-api-m5lsuu6ouq-uc.a.run.app`.
+From the frontend project directory:
+
+```powershell
+cd "$env:USERPROFILE\WebstormProjects\Web-SystemPROJECT2FRONTEND\Pintrest\pintrest"
+npm ci
+npm run build
+npx firebase-tools login
+npx firebase-tools deploy --only hosting --project project-2-pinboard-2026
+```
+
+Open [Firebase Hosting](https://console.firebase.google.com/project/project-2-pinboard-2026/hosting/sites)
+and test the deployed site. Sign in, create or select a creation with an
+uploaded source image, enter instructions, and run the agent workflow. Confirm
+that the request completes, the generated image is saved, and the creation
+status is `completed`. Do not call the ADK service from browser code.
+
+The agent project should show Gemini requests in [Vertex AI API metrics](https://console.cloud.google.com/apis/api/aiplatform.googleapis.com/metrics?project=project2adk-514723)
+and structured agent logs in [Logs Explorer](https://console.cloud.google.com/logs/query?project=project2adk-514723)
+with filter `jsonPayload.event="gemini_api_call"`. API-side workflow errors
+appear in [the backend logs](https://console.cloud.google.com/logs/query?project=project-2-pinboard-2026).
+A direct unauthenticated request to the private agent URL is not a valid test.
+
+### 6. Cross-project access and rollback
+
+With the current signed-URL design, the agent service has **no direct IAM
+access** to the backend project's Firestore or media bucket. The only required
+cross-project permission is `roles/run.invoker` for the backend runtime service
+account on the private agent service. Do not grant broad project Editor access,
+Firestore access, or bucket access for this workflow.
+
+To roll back, first identify the previous ready revision, then send all traffic
+to that revision in the agent project:
+
+```powershell
+gcloud.cmd --configuration=adk-owner run revisions list --service=pinboard-adk --project=project2adk-514723 --region=us-central1
+gcloud.cmd --configuration=adk-owner run services update-traffic pinboard-adk --project=project2adk-514723 --region=us-central1 --to-revisions=<PREVIOUS_READY_REVISION>=100
+```
+
+For an API-only rollback, use the backend project and service with its previous
+ready revision:
+
+```powershell
+gcloud.cmd --configuration=partner-backend run revisions list --service=project-2-api --project=project-2-pinboard-2026 --region=us-central1
+gcloud.cmd --configuration=partner-backend run services update-traffic project-2-api --project=project-2-pinboard-2026 --region=us-central1 --to-revisions=<PREVIOUS_READY_REVISION>=100
+```
+
+If an agent revision is healthy but the backend should temporarily stop calling
+it, the backend owner can restore the prior `ADK_AGENT_URL` or remove the
+variable; the workflow will then return `AGENT_UNAVAILABLE`. Keep frontend
+changes, backend configuration, and agent revisions coordinated during rollback.

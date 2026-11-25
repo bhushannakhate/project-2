@@ -20,6 +20,10 @@ import {
   deleteGooglePhotosConnection,
   deleteGooglePhotosPicker,
 } from "../controllers/firestoreController.js";
+import {
+  postCreationTranscription,
+  patchCreationTranscription,
+} from "../controllers/agentWorkflowController.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { requireFirebaseUser } from "../middleware/requireFirebaseUser.js";
 import {
@@ -27,6 +31,11 @@ import {
   validateCreationQuery,
 } from "../middleware/validateCreation.js";
 import { validateBody } from "../middleware/validateBody.js";
+import {
+  validateTranscriptionEdit,
+  validateTranscriptionRequest,
+} from "../middleware/validateTranscription.js";
+import { loadConfig } from "../config/env.js";
 import {
   validateMediaKind,
   validateMediaUpload,
@@ -81,6 +90,22 @@ router.post(
   requireFirebaseUser,
   validateBody,
   asyncHandler(postGooglePhotosSave),
+);
+router.post(
+  "/creations/:creationId/transcription",
+  requireFirebaseUser,
+  validateBody,
+  validateTranscriptionRequest,
+  asyncHandler((request, response) =>
+    postCreationTranscription(request, response, loadConfig()),
+  ),
+);
+router.patch(
+  "/creations/:creationId/transcription",
+  requireFirebaseUser,
+  validateBody,
+  validateTranscriptionEdit,
+  asyncHandler(patchCreationTranscription),
 );
 router.patch(
   "/users/me",

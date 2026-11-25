@@ -7,7 +7,7 @@ export class ApiError extends Error {
   }
 }
 
-export function errorHandler(error, _request, response, next) {
+export function errorHandler(error, request, response, next) {
   if (response.headersSent) {
     next(error);
     return;
@@ -25,11 +25,23 @@ export function errorHandler(error, _request, response, next) {
     status = 413;
     code = "PAYLOAD_TOO_LARGE";
     message = "Request body exceeds the 20kb limit.";
-  } else if (status >= 500 && !(error instanceof ApiError)) {
-    status = 500;
-    code = "INTERNAL_SERVER_ERROR";
-    message = "An unexpected error occurred.";
-    console.error("API request failed:", error);
+  } else if (status >= 500) {
+    if (!(error instanceof ApiError)) {
+      status = 500;
+      code = "INTERNAL_SERVER_ERROR";
+      message = "An unexpected error occurred.";
+    }
+    console.error(
+      JSON.stringify({
+        event: "api_5xx",
+        requestId: request.requestId,
+        method: request.method,
+        route: request.route?.path || request.path,
+        status,
+        errorCode: code,
+        errorType: error.name,
+      }),
+    );
   }
 
   response.status(status).json({ error: { code, message } });

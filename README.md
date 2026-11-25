@@ -9,7 +9,142 @@ Maintainable Express 5 API for the Pinboard Studio application. Firebase/Firesto
 - **API service:** https://project-2-api-m5lsuu6ouq-uc.a.run.app
 - **Project:** `project-2-pinboard-2026`
 - **Region:** `us-central1`
-- **UI:** https://project-1-ui-m5lsuu6ouq-uc.a.run.app
+- **UI and API (single Cloud Run image):** https://project-2-api-m5lsuu6ouq-uc.a.run.app
+- **Firebase Hosting fallback:** https://project-2-pinboard-2026.web.app
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the complete two-project deployment
+runbook, account/configuration setup, Docker build commands, verification, and
+rollback steps.
+
+## Combined frontend and API image
+
+The backend `Dockerfile` builds the Vite frontend from a separate named build
+context, copies its static output into the Express image, and serves the UI and
+`/api` on the same origin. The Vite Firebase web settings are supplied as build
+arguments; they are public browser configuration, not service credentials.
+`VITE_API_BASE_URL` is intentionally empty in this deployment so browser API
+calls use the same Cloud Run origin. Do not pass backend or agent secrets as
+Vite variables or Docker build arguments.
+
+The private ADK service remains a **separate Cloud Run service** in the agent
+owner's project because its Vertex AI runtime identity and project ownership
+are separate. The combined frontend/API service calls it using Cloud Run
+service-to-service authentication. One image does not combine these services
+or move the agents to the backend project.
+
+### Build and deploy the combined image (PowerShell)
+
+Prerequisites: Docker Desktop with Buildx, access to both local source folders,
+and the `partner-backend` gcloud configuration for `project-2-pinboard-2026`.
+The Vite Firebase settings are taken from the frontend's ignored `.env.local`;
+do not commit that file. The Firebase web API key, app ID, project ID, auth
+domain, and GA measurement ID are public client settings. Never put service
+account keys, OAuth client secrets, or token-encryption keys in the frontend.
+
+```powershell
+$BackendRoot = "$env:USERPROFILE\WebstormProjects\project-2mongo"
+$FrontendRoot = "$env:USERPROFILE\WebstormProjects\Web-SystemPROJECT2FRONTEND\Pintrest\pintrest"
+Set-Location $BackendRoot
+
+foreach ($line in Get-Content (Join-Path $FrontendRoot ".env.local")) {
+  if ($line -match '^\s*(VITE_[A-Z0-9_]+)\s*=(.*)\s*$') {
+    $name = $matches[1]
+    $value = $matches[2].Trim()
+    if ($value.Length -ge 2 -and (($value[0] -eq '"' -and $value[-1] -eq '"') -or ($value[0] -eq "'" -and $value[-1] -eq "'"))) {
+      $value = $value.Substring(1, $value.Length - 2)
+    }
+    Set-Item "Env:$name" $value
+  }
+}
+$env:VITE_API_BASE_URL = ""
+foreach ($name in @("VITE_FIREBASE_API_KEY", "VITE_FIREBASE_AUTH_DOMAIN", "VITE_FIREBASE_PROJECT_ID", "VITE_FIREBASE_APP_ID")) {
+  if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+    throw "Required frontend build setting $name is missing from .env.local."
+  }
+}
+
+$Registry = "us-central1-docker.pkg.dev"
+$Repository = "cloud-run-source-deploy"
+$Image = "$Registry/project-2-pinboard-2026/$Repository/pinboard-app:$(Get-Date -Format yyyyMMddHHmmss)"
+```
+
+The existing `cloud-run-source-deploy` Artifact Registry repository is used by
+both the Docker CLI and the Cloud Build fallback below. Authenticate Docker and
+build/push the image from the two working trees:
+
+```powershell
+$RegistryToken = gcloud.cmd --configuration=partner-backend auth print-access-token
+if (-not $RegistryToken) { throw "Could not obtain an Artifact Registry access token." }
+$RegistryToken | docker login --username oauth2accesstoken --password-stdin "https://$Registry"
+Remove-Variable RegistryToken
+
+docker buildx build --platform linux/amd64 --build-context frontend="$FrontendRoot" `
+  --build-arg "VITE_API_BASE_URL=" `
+  --build-arg "VITE_FIREBASE_API_KEY=$env:VITE_FIREBASE_API_KEY" `
+  --build-arg "VITE_FIREBASE_AUTH_DOMAIN=$env:VITE_FIREBASE_AUTH_DOMAIN" `
+  --build-arg "VITE_FIREBASE_PROJECT_ID=$env:VITE_FIREBASE_PROJECT_ID" `
+  --build-arg "VITE_FIREBASE_APP_ID=$env:VITE_FIREBASE_APP_ID" `
+  --build-arg "VITE_GA4_MEASUREMENT_ID=$env:VITE_GA4_MEASUREMENT_ID" `
+  --tag $Image --push .
+
+gcloud.cmd --configuration=partner-backend run deploy project-2-api --project=project-2-pinboard-2026 --region=us-central1 --image=$Image --quiet
+```
+
+If Docker Desktop is unavailable, submit the same Dockerfile to Cloud Build.
+The frontend must be included as a named build context, but its `.env.local`
+must not be copied into the upload:
+
+```powershell
+$BuildContext = Join-Path $env:TEMP "pinboard-build-$([guid]::NewGuid().ToString('N'))"
+New-Item -ItemType Directory -Path $BuildContext | Out-Null
+Copy-Item Dockerfile, .dockerignore, cloudbuild.yaml, package.json, package-lock.json, src `
+  -Destination $BuildContext -Recurse
+$FrontendContext = Join-Path $BuildContext "frontend"
+New-Item -ItemType Directory -Path $FrontendContext | Out-Null
+Get-ChildItem $FrontendRoot -Force |
+  Where-Object { $_.Name -notmatch '^(\.git|\.idea|node_modules|dist|dist-ssr|\.env.*|.*\.local)$' } |
+  ForEach-Object { Copy-Item $_.FullName -Destination $FrontendContext -Recurse -Force }
+
+$Image = "us-central1-docker.pkg.dev/project-2-pinboard-2026/cloud-run-source-deploy/pinboard-app:$(Get-Date -Format yyyyMMddHHmmss)"
+gcloud.cmd --configuration=partner-backend builds submit $BuildContext `
+  --project=project-2-pinboard-2026 --region=us-central1 --config=cloudbuild.yaml `
+  --substitutions="_IMAGE=$Image,_VITE_FIREBASE_API_KEY=$env:VITE_FIREBASE_API_KEY,_VITE_FIREBASE_AUTH_DOMAIN=$env:VITE_FIREBASE_AUTH_DOMAIN,_VITE_FIREBASE_PROJECT_ID=$env:VITE_FIREBASE_PROJECT_ID,_VITE_FIREBASE_APP_ID=$env:VITE_FIREBASE_APP_ID,_VITE_GA4_MEASUREMENT_ID=$env:VITE_GA4_MEASUREMENT_ID"
+gcloud.cmd --configuration=partner-backend run deploy project-2-api `
+  --project=project-2-pinboard-2026 --region=us-central1 --image=$Image --quiet
+Remove-Item $BuildContext -Recurse -Force
+```
+
+This deploys the frontend and API together on the existing Cloud Run service,
+preserving its runtime service account and server-side settings, including
+`ADK_AGENT_URL`. Verify the service and its health:
+
+```powershell
+gcloud.cmd --configuration=partner-backend run services describe project-2-api --project=project-2-pinboard-2026 --region=us-central1 --format="yaml(status.url,status.latestReadyRevisionName,status.conditions,spec.template.spec.serviceAccountName)"
+curl.exe https://project-2-api-m5lsuu6ouq-uc.a.run.app/api/health
+```
+
+### Enable browser authentication and uploads on the combined origin
+
+In [Firebase Authentication settings](https://console.firebase.google.com/project/project-2-pinboard-2026/authentication/settings),
+add `project-2-api-m5lsuu6ouq-uc.a.run.app` to **Authorized domains** if it is
+not already listed. Allow this origin in the API CORS configuration and the
+private media bucket CORS policy. Apply the repository's bucket CORS file with
+the partner account:
+
+```powershell
+gcloud.cmd --configuration=partner-backend run services update project-2-api --project=project-2-pinboard-2026 --region=us-central1 --update-env-vars="^^^^@^^^^WEB_ORIGIN=http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,https://project-1-ui-m5lsuu6ouq-uc.a.run.app,https://project-2-pinboard-2026.web.app,https://project-2-pinboard-2026.firebaseapp.com,https://project-2-api-m5lsuu6ouq-uc.a.run.app"
+gcloud.cmd --configuration=partner-backend storage buckets update gs://project-2-pinboard-2026-media --cors-file=config/media-bucket-cors.json --project=project-2-pinboard-2026
+```
+
+The ADK remains deployed separately:
+
+- [Private ADK Cloud Run service](https://console.cloud.google.com/run/detail/us-central1/pinboard-adk?project=project2adk-514723)
+- [Vertex AI model usage](https://console.cloud.google.com/apis/api/aiplatform.googleapis.com/metrics?project=project2adk-514723)
+- [ADK Logs Explorer](https://console.cloud.google.com/logs/query?project=project2adk-514723)
+
+See the [agent deployment guide](agents/README.md#production-deployment-two-google-cloud-projects)
+for cross-project IAM, agent deployment, authenticated invocation, verification,
+and rollback details.
 
 ## Project planning
 
@@ -24,7 +159,7 @@ npm install
 npm run dev
 ```
 
-Use `npm start` for normal startup. The API listens on port `4000` by default. `PORT`, `NODE_ENV`, and the comma-separated browser origins in `WEB_ORIGIN` can be customized. Requests without an `Origin` header are allowed for health probes and command-line clients. The server applies Helmet security headers, logs requests, and limits JSON bodies to 20kb.
+Use `npm start` for normal startup. The API listens on port `4000` by default. `PORT`, `NODE_ENV`, and the comma-separated browser origins in `WEB_ORIGIN` can be customized. Requests without an `Origin` header are allowed for health probes and command-line clients. Helmet applies a Content Security Policy that allows Firebase Authentication and Google sign-in endpoints, Google Tag Manager and GA4 collection, browser-local `blob:` image previews, and the private media bucket's `storage.googleapis.com` upload/download URLs; add only specific trusted origins if these integrations change. The server also logs requests and limits JSON bodies to 20kb.
 
 Run `npm run firebase:check` to verify the selected Firebase project and service-account configuration. The canonical Firebase project is `project-2-pinboard-2026`; keep service-account files private in the ignored `credentials/` directory. Production uses a dedicated Cloud Run service account and workload identity.
 
@@ -66,6 +201,8 @@ All Firestore endpoints require `Authorization: Bearer <Firebase ID token>`.
 | `POST`   | `/api/creations/:creationId/media/uploads/:uploadId/complete`                                        | Validate and attach an uploaded file to the creation.                             |
 | `GET`    | `/api/creations/:creationId/media/:mediaKind/download-url`                                           | Get a short-lived URL for owned media.                                            |
 | `POST`   | `/api/creations/:creationId/agent-workflows`                                                         | Run the private ADK workflow using the creation's uploaded image and audio.       |
+| `POST`   | `/api/creations/:creationId/transcription`                                                           | Transcribe the owned uploaded audio and save the provider result.                 |
+| `PATCH`  | `/api/creations/:creationId/transcription`                                                           | Save the authenticated user's edited transcription.                               |
 | `GET`    | `/api/google-photos/connection`                                                                      | Get the current user's Google Photos connection status.                           |
 | `POST`   | `/api/google-photos/oauth/authorize`                                                                 | Start the state- and PKCE-protected Google OAuth flow.                            |
 | `GET`    | `/api/google-photos/oauth/callback`                                                                  | Google OAuth callback; protected by one-use server state.                         |
@@ -89,10 +226,16 @@ Media lifecycle:
 
 The agent workflow requires an owned creation with a validated `sourceImage` and
 either written instructions, user-uploaded `audio`, or both. Audio is optional.
-The browser may send only instructions and whether to include the uploaded audio;
-IDs, media URLs, review state, and durable writes are managed by the authenticated
+The browser must send `consentToGemini: true` after the in-context disclosure; a
+voice workflow may also send an edited `transcript` up to 4,000 characters. IDs,
+media URLs, review state, and durable writes are managed by the authenticated
 Express backend. See [`agents/README.md`](agents/README.md) for local setup, Google
 Cloud authentication, and private two-project deployment.
+
+After an audio upload is completed, call `POST /api/creations/:creationId/transcription`
+to produce a transcript and provider confidence value. The user can edit it with
+the PATCH endpoint before starting the Gemini workflow. Audio and transcript data
+remain scoped to the authenticated creation.
 
 Set `MEDIA_STORAGE_BUCKET` to the dedicated private bucket name. The bucket must have public access prevention and uniform bucket-level access enabled. `config/media-bucket-cors.json` and `config/media-bucket-lifecycle.json` configure direct browser uploads and one-day staging cleanup. The Cloud Run runtime service account needs object-level bucket access and permission to sign URLs. Never make this bucket public.
 
@@ -101,6 +244,8 @@ Set `MEDIA_STORAGE_BUCKET` to the dedicated private bucket name. The bucket must
 Enable both the Google Photos Picker API and Google Photos Library API in the canonical Google Cloud project. Configure a Google OAuth web client with the exact callback URI `https://project-2-api-m5lsuu6ouq-uc.a.run.app/api/google-photos/oauth/callback` in production and `http://localhost:4000/api/google-photos/oauth/callback` for local development. Add the corresponding frontend origins to the OAuth client and API `WEB_ORIGIN`. Use Google's current OAuth verification and test-user requirements before production use.
 
 Set `GOOGLE_PHOTOS_CLIENT_ID`, `GOOGLE_PHOTOS_CLIENT_SECRET`, `GOOGLE_PHOTOS_REDIRECT_URI`, and `GOOGLE_PHOTOS_TOKEN_ENCRYPTION_KEY` on the API. Generate a 32-byte encryption key locally with `openssl rand -base64 32`; keep the OAuth client secret and encryption key in Secret Manager for Cloud Run, never in source control or frontend configuration. Add both requested scopes to the OAuth consent screen's Data Access configuration: `photospicker.mediaitems.readonly` imports selected items, and `photoslibrary.appendonly` saves a selected or generated image only when the user requests it. Existing Picker-only connections are asked to grant the save scope the first time they save. Tokens are AES-256-GCM encrypted in server-only Firestore documents. Replacing the encryption key without re-encrypting existing documents makes existing connections unreadable.
+
+The production project `project-2-pinboard-2026` has Identity Toolkit, Firestore, Cloud Storage, Photos Picker, Photos Library, Secret Manager, and Cloud Run APIs enabled. Its `project-2-api` service reads the OAuth client secret and token-encryption key from Secret Manager secrets `pinboard-google-photos-client-secret` and `pinboard-google-photos-token-encryption-key`; grant `roles/secretmanager.secretAccessor` to the Cloud Run runtime service account when rotating or replacing those secrets. The OAuth client ID is configured as a non-secret Cloud Run environment variable, and the callback is set to the production URI above. The callback was verified with Google's OAuth authorization endpoint. The OAuth consent screen must still have the requested scopes configured and the signed-in user must satisfy the app's publishing/test-user requirements.
 
 OAuth states and Picker session records have an `expiresAt` field. Enable Firestore TTL for both collection groups:
 

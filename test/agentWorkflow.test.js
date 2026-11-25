@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   getAdkServiceUrl,
+  invokeAdkTranscription,
   invokeAdkWorkflow,
 } from "../src/services/adkAgentService.js";
 import { validateAgentWorkflow } from "../src/middleware/validateAgentWorkflow.js";
@@ -41,6 +42,7 @@ test("agent workflow accepts typed instructions without requiring audio", () => 
     body: {
       instructions: "Make the background brighter.",
       includeAudio: false,
+      consentToGemini: true,
     },
   };
   let nextCalled = false;
@@ -52,18 +54,24 @@ test("agent workflow accepts typed instructions without requiring audio", () => 
   assert.equal(request.agentIncludeAudio, false);
 
   const audioOnlyRequest = {
-    body: { instructions: "", includeAudio: true },
+    body: { instructions: "", includeAudio: true, consentToGemini: true },
   };
   validateAgentWorkflow(audioOnlyRequest, {}, () => {});
   assert.equal(audioOnlyRequest.agentInstructions, "");
   assert.equal(audioOnlyRequest.agentIncludeAudio, true);
 
   const combinedRequest = {
-    body: { instructions: "Brighten the scene.", includeAudio: true },
+    body: {
+      instructions: "Brighten the scene.",
+      includeAudio: true,
+      transcript: "Make it brighter.",
+      consentToGemini: true,
+    },
   };
   validateAgentWorkflow(combinedRequest, {}, () => {});
   assert.equal(combinedRequest.agentInstructions, "Brighten the scene.");
   assert.equal(combinedRequest.agentIncludeAudio, true);
+  assert.equal(combinedRequest.agentTranscript, "Make it brighter.");
 
   let noInputError;
   validateAgentWorkflow(
@@ -77,13 +85,29 @@ test("agent workflow accepts typed instructions without requiring audio", () => 
 
   let error;
   validateAgentWorkflow(
-    { body: { instructions: "Edit", userId: "another-user" } },
+    {
+      body: {
+        instructions: "Edit",
+        userId: "another-user",
+        consentToGemini: true,
+      },
+    },
     {},
     (value) => {
       error = value;
     },
   );
   assert.equal(error.status, 400);
+
+  let consentError;
+  validateAgentWorkflow(
+    { body: { instructions: "Edit", includeAudio: false } },
+    {},
+    (value) => {
+      consentError = value;
+    },
+  );
+  assert.equal(consentError.code, "GEMINI_CONSENT_REQUIRED");
 });
 
 test("Vertex AI capacity responses have a safe actionable API error", async () => {
@@ -114,6 +138,43 @@ test("Vertex AI capacity responses have a safe actionable API error", async () =
   assert.equal(loggedCalls[0].service, "Google ADK agent");
   assert.equal(loggedCalls[0].outcome, "failure");
   assert.equal(loggedCalls[0].statusCode, 429);
+});
+
+test("ADK transcription requests preserve the owner-bound media contract", async () => {
+  const calls = [];
+  const result = await invokeAdkTranscription(
+    { adkAgentUrl: "http://127.0.0.1:8000", nodeEnv: "development" },
+    {
+      request_id: "00000000-0000-4000-8000-000000000001",
+      user_id: "user-id",
+      creation_id: "creation-id",
+      audio_url: "https://storage.example/private-audio",
+      audio_content_type: "audio/webm",
+    },
+    {
+      fetchImpl: async (url, options) => {
+        calls.push({ url, options });
+        return new Response(
+          JSON.stringify({ transcription: "Make it warmer.", confidence: 0.9 }),
+          { status: 200 },
+        );
+      },
+      logApiCall: async () => {},
+    },
+  );
+
+  assert.deepEqual(result, {
+    transcription: "Make it warmer.",
+    confidence: 0.9,
+  });
+  assert.equal(calls[0].url, "http://127.0.0.1:8000/transcriptions");
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    request_id: "00000000-0000-4000-8000-000000000001",
+    user_id: "user-id",
+    creation_id: "creation-id",
+    audio_url: "https://storage.example/private-audio",
+    audio_content_type: "audio/webm",
+  });
 });
 
 test("successful ADK calls record their status and duration", async () => {
