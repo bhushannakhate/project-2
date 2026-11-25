@@ -1,4 +1,5 @@
 import ipaddress
+import json
 import os
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -92,18 +93,20 @@ async def download_trusted_media(
     return bytes(chunks)
 
 
-async def transcribe_user_audio(tool_context: ToolContext) -> dict[str, str]:
-    """Transcribe the optional audio uploaded for this creation."""
-    context = tool_context.state["workflow_context"]
-    if not context.get("audio_url"):
-        return {"transcription": "", "status": "skipped_no_audio"}
-
+async def transcribe_audio_reference(
+    *,
+    audio_url: str,
+    audio_content_type: str,
+    user_id: str,
+    creation_id: str,
+    request_id: str | None = None,
+) -> dict[str, object]:
     audio_bytes = await download_trusted_media(
-        context["audio_url"],
-        context["user_id"],
-        context["creation_id"],
+        audio_url,
+        user_id,
+        creation_id,
         "audio",
-        context["audio_content_type"],
+        audio_content_type,
         MAX_AUDIO_BYTES,
     )
     model = os.getenv("GEMINI_TEXT_MODEL", "gemini-3.5-flash")
@@ -112,23 +115,52 @@ async def transcribe_user_audio(tool_context: ToolContext) -> dict[str, str]:
             client,
             stage="audio_transcription",
             model=model,
-            request_id=context.get("request_id"),
+            request_id=request_id,
             contents=[
                 types.Part.from_text(
                     text=(
-                        "Transcribe the spoken editing instructions accurately, then provide "
-                        "a one-sentence summary. Clearly label transcript and summary. "
-                        "Do not infer words that are not audible."
+                        "Transcribe only the spoken editing instructions accurately. Return "
+                        "JSON with a `transcription` string and a numeric `confidence` from "
+                        "0 to 1. Do not infer words that are not audible."
                     )
                 ),
                 types.Part.from_bytes(
                     data=audio_bytes,
-                    mime_type=context["audio_content_type"],
+                    mime_type=audio_content_type,
                 ),
             ],
+            config=types.GenerateContentConfig(response_mime_type="application/json"),
         )
     text = (response.text or "").strip()
     if not text:
         raise RuntimeError("The audio transcription model returned no text.")
-    tool_context.state["audio_transcript"] = text[:4000]
-    return {"transcription": text[:4000]}
+    try:
+        payload = json.loads(text)
+        transcription = str(payload.get("transcription", "")).strip()
+        confidence = float(payload.get("confidence"))
+    except (TypeError, ValueError, json.JSONDecodeError) as error:
+        raise RuntimeError("The audio transcription model returned invalid JSON.") from error
+    if not transcription or not 0 <= confidence <= 1:
+        raise RuntimeError("The audio transcription model returned an invalid transcript.")
+    return {"transcription": transcription[:4000], "confidence": confidence}
+
+
+async def transcribe_user_audio(tool_context: ToolContext) -> dict[str, object]:
+    """Transcribe the optional audio uploaded for this creation."""
+    context = tool_context.state["workflow_context"]
+    if not context.get("audio_url"):
+        return {"transcription": "", "status": "skipped_no_audio"}
+    override = context.get("audio_transcript_override", "").strip()
+    if override:
+        tool_context.state["audio_transcript"] = override[:4000]
+        return {"transcription": override[:4000], "confidence": None, "edited": True}
+    result = await transcribe_audio_reference(
+        audio_url=context["audio_url"],
+        audio_content_type=context["audio_content_type"],
+        user_id=context["user_id"],
+        creation_id=context["creation_id"],
+        request_id=context.get("request_id"),
+    )
+    tool_context.state["audio_transcript"] = result["transcription"]
+    tool_context.state["audio_confidence"] = result["confidence"]
+    return result

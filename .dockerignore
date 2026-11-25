@@ -1,0 +1,11 @@
+.git
+.idea
+.env
+.env.*
+!.env.example
+node_modules
+coverage
+credentials
+agents/.venv
+agents/**/__pycache__
+agents/pinboard_agents/.env

@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { createApp } from "../src/app.js";
 import { ApiError, errorHandler } from "../src/middleware/errorHandler.js";
@@ -28,6 +31,26 @@ test("health endpoint reports availability and security headers", async () => {
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { status: "ok" });
     assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+    assert.match(
+      response.headers.get("x-request-id"),
+      /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/i,
+    );
+    const csp = response.headers.get("content-security-policy");
+    assert.match(csp, /script-src 'self' https:\/\/www\.googletagmanager\.com/);
+    assert.match(
+      csp,
+      /connect-src 'self' https:\/\/identitytoolkit\.googleapis\.com/,
+    );
+    assert.match(csp, /https:\/\/securetoken\.googleapis\.com/);
+    assert.match(csp, /connect-src[^;]*https:\/\/storage\.googleapis\.com/);
+    assert.match(
+      csp,
+      /img-src 'self' data: blob: https:\/\/storage\.googleapis\.com/,
+    );
+    assert.match(
+      csp,
+      /frame-src 'self' https:\/\/project-2-pinboard-2026\.firebaseapp\.com/,
+    );
   });
 });
 
@@ -42,6 +65,45 @@ test("unknown routes use the standard API error format", async () => {
       },
     });
   });
+});
+
+test("serves the frontend and falls back to its entry point for client routes", async () => {
+  const frontendDirectory = await mkdtemp(
+    join(tmpdir(), "project-2-frontend-"),
+  );
+  await mkdir(join(frontendDirectory, "assets"));
+  await writeFile(
+    join(frontendDirectory, "index.html"),
+    "<!doctype html><title>Pinboard Studio</title>",
+  );
+  await writeFile(
+    join(frontendDirectory, "assets", "app.js"),
+    "console.log('app')",
+  );
+
+  try {
+    await withServer(
+      createApp({ config, frontendDirectory }),
+      async (baseUrl) => {
+        const page = await fetch(`${baseUrl}/account`);
+        assert.equal(page.status, 200);
+        assert.match(await page.text(), /Pinboard Studio/);
+
+        const asset = await fetch(`${baseUrl}/assets/app.js`);
+        assert.equal(asset.status, 200);
+        assert.equal(await asset.text(), "console.log('app')");
+
+        const missingApiRoute = await fetch(`${baseUrl}/api/missing`);
+        assert.equal(missingApiRoute.status, 404);
+        assert.match(
+          missingApiRoute.headers.get("content-type"),
+          /application\/json/,
+        );
+      },
+    );
+  } finally {
+    await rm(frontendDirectory, { recursive: true, force: true });
+  }
 });
 
 test("Firestore routes require a Firebase bearer token", async () => {

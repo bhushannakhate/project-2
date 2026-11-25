@@ -238,6 +238,7 @@ test(
           body: {
             instructions: "Edit my uploaded photo.",
             includeAudio: true,
+            consentToGemini: true,
           },
         },
       );
@@ -262,7 +263,10 @@ test(
           `/api/creations/${creationId}/agent-workflows`,
           {
             method: "POST",
-            body: { instructions: "Do not cross user scope." },
+            body: {
+              instructions: "Do not cross user scope.",
+              consentToGemini: true,
+            },
           },
         );
         assert.equal(crossUserWorkflow.status, 404);

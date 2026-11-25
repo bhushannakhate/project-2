@@ -9,7 +9,10 @@ import { getFirebase } from "../config/firebase.js";
 import { ApiError } from "../middleware/errorHandler.js";
 import { normalizeImageBuffer } from "../models/imageValidation.js";
 import { MAX_AUDIO_BYTES, MAX_IMAGE_BYTES } from "../models/mediaValidation.js";
-import { invokeAdkWorkflow } from "../services/adkAgentService.js";
+import {
+  invokeAdkTranscription,
+  invokeAdkWorkflow,
+} from "../services/adkAgentService.js";
 import { sendAnalyticsEvent } from "../services/analyticsService.js";
 
 const AUDIO_CONTENT_TYPES = new Set([
@@ -22,6 +25,7 @@ const AUDIO_CONTENT_TYPES = new Set([
 const MAX_SUMMARY_LENGTH = 700;
 const MAX_CAPTION_LENGTH = 1000;
 const AGENT_MEDIA_URL_TTL_MS = 15 * 60 * 1000;
+const MAX_TRANSCRIPT_LENGTH = 4000;
 
 function assertMediaReference(reference, userId, creationId, mediaKind) {
   const prefix = `users/${userId}/creations/${creationId}/${mediaKind}/`;
@@ -97,6 +101,23 @@ function summarizeAgentResult(result) {
     );
   }
 
+  const audioConfidence =
+    result.audio_confidence === null || result.audio_confidence === undefined
+      ? null
+      : Number(result.audio_confidence);
+  if (
+    audioConfidence !== null &&
+    (!Number.isFinite(audioConfidence) ||
+      audioConfidence < 0 ||
+      audioConfidence > 1)
+  ) {
+    throw new ApiError(
+      502,
+      "AGENT_UNAVAILABLE",
+      "The agent service returned invalid transcription confidence.",
+    );
+  }
+
   return {
     imageBuffer,
     imageContentType: result.image_content_type,
@@ -113,6 +134,15 @@ function summarizeAgentResult(result) {
       typeof result.image_analysis === "string"
         ? result.image_analysis.slice(0, MAX_SUMMARY_LENGTH)
         : "",
+    creativeBrief:
+      typeof result.creative_brief === "string"
+        ? result.creative_brief.slice(0, MAX_SUMMARY_LENGTH)
+        : "",
+    audioTranscript:
+      typeof result.audio_transcript === "string"
+        ? result.audio_transcript.slice(0, MAX_TRANSCRIPT_LENGTH)
+        : "",
+    audioConfidence,
   };
 }
 
@@ -221,6 +251,9 @@ export async function postAgentWorkflow(request, response, config) {
       creation_id: creationId,
       workflow_id: workflowId,
       instructions,
+      ...(request.agentTranscript
+        ? { audio_transcript: request.agentTranscript }
+        : {}),
       source_image_url: sourceImageDownload.downloadUrl,
       source_image_content_type: sourceImage.contentType,
       ...(audio && audioDownload
@@ -245,6 +278,10 @@ export async function postAgentWorkflow(request, response, config) {
       caption: output.caption,
       audioSummary: output.audioSummary,
       imageAnalysis: output.imageAnalysis,
+      creativeBrief: output.creativeBrief,
+      audioTranscript: output.audioTranscript,
+      audioConfidence: output.audioConfidence,
+      geminiConsentAt: new Date().toISOString(),
     };
     await updateCreation(firestore, userId, creationId, {
       status: "completed",
@@ -301,4 +338,123 @@ export async function postAgentWorkflow(request, response, config) {
     );
     throw error;
   }
+}
+
+function assertAudioReference(reference, userId, creationId) {
+  const prefix = `users/${userId}/creations/${creationId}/audio/`;
+  if (
+    !reference?.objectPath?.startsWith(prefix) ||
+    !AUDIO_CONTENT_TYPES.has(reference.contentType) ||
+    !Number.isSafeInteger(reference.sizeBytes) ||
+    reference.sizeBytes < 1 ||
+    reference.sizeBytes > MAX_AUDIO_BYTES
+  ) {
+    throw new ApiError(
+      409,
+      "MEDIA_REQUIRED",
+      "A valid uploaded audio recording is required.",
+    );
+  }
+}
+
+function normalizeTranscription(result) {
+  const text =
+    typeof result?.transcription === "string"
+      ? result.transcription.trim().slice(0, MAX_TRANSCRIPT_LENGTH)
+      : "";
+  const confidence =
+    result?.confidence === null || result?.confidence === undefined
+      ? null
+      : Number(result.confidence);
+  if (
+    !text ||
+    (confidence !== null &&
+      (!Number.isFinite(confidence) || confidence < 0 || confidence > 1))
+  ) {
+    throw new ApiError(
+      502,
+      "TRANSCRIPTION_UNAVAILABLE",
+      "The transcription service returned an invalid result.",
+    );
+  }
+  return { text, confidence };
+}
+
+export async function postCreationTranscription(request, response, config) {
+  const requestId = randomUUID();
+  const { firestore, bucket } = getFirebase(config);
+  const userId = request.firebaseUser.uid;
+  const { creationId } = request.params;
+  const creation = await getCreation(firestore, userId, creationId);
+  if (!creation) {
+    throw new ApiError(404, "NOT_FOUND", "Creation not found.");
+  }
+  const audio = creation.media?.audio;
+  assertAudioReference(audio, userId, creationId);
+  const audioDownload = await createMediaDownloadUrl(
+    bucket,
+    userId,
+    creationId,
+    "audio",
+    creation,
+    AGENT_MEDIA_URL_TTL_MS,
+  );
+  if (!audioDownload) {
+    throw new ApiError(
+      409,
+      "MEDIA_REQUIRED",
+      "The audio recording is unavailable.",
+    );
+  }
+
+  const result = normalizeTranscription(
+    await invokeAdkTranscription(config, {
+      request_id: requestId,
+      user_id: userId,
+      creation_id: creationId,
+      audio_url: audioDownload.downloadUrl,
+      audio_content_type: audio.contentType,
+    }),
+  );
+  await updateCreation(firestore, userId, creationId, {
+    audioTranscription: {
+      text: result.text,
+      confidence: result.confidence,
+      provider: "Google Gemini audio transcription",
+      edited: false,
+      updatedAt: new Date().toISOString(),
+    },
+  });
+  response.json({
+    transcription: result,
+    requestId,
+  });
+}
+
+export async function patchCreationTranscription(request, response) {
+  const { firestore } = getFirebase();
+  const userId = request.firebaseUser.uid;
+  const { creationId } = request.params;
+  const creation = await getCreation(firestore, userId, creationId);
+  if (!creation) {
+    throw new ApiError(404, "NOT_FOUND", "Creation not found.");
+  }
+  const text = request.body.transcript.trim();
+  const previous = creation.audioTranscription || {};
+  await updateCreation(firestore, userId, creationId, {
+    audioTranscription: {
+      text,
+      confidence: previous.confidence ?? null,
+      provider: previous.provider || "Google Gemini audio transcription",
+      edited: true,
+      updatedAt: new Date().toISOString(),
+    },
+  });
+  response.json({
+    transcription: {
+      text,
+      confidence: previous.confidence ?? null,
+      edited: true,
+    },
+  });
 }

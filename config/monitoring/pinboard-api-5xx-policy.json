@@ -1,0 +1,52 @@
+{
+  "displayName": "Pinboard API 5xx responses",
+  "documentation": {
+    "content": "The Pinboard API emitted a 5xx response. Inspect the requestId in Cloud Run logs, then check the ADK or Google provider logs when errorCode indicates an upstream failure.",
+    "mimeType": "text/markdown"
+  },
+  "conditions": [
+    {
+      "displayName": "At least one API 5xx response in five minutes",
+      "conditionThreshold": {
+        "filter": "metric.type=\"logging.googleapis.com/user/pinboard_api_5xx\" resource.type=\"cloud_run_revision\"",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0,
+        "duration": "0s",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_SUM",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "trigger": {
+          "count": 1
+        }
+      }
+    },
+    {
+      "displayName": "Provider failures in five minutes",
+      "conditionThreshold": {
+        "filter": "metric.type=\"logging.googleapis.com/user/pinboard_provider_failures\" resource.type=\"cloud_run_revision\"",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0,
+        "duration": "0s",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_SUM",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "trigger": {
+          "count": 1
+        }
+      }
+    }
+  ],
+  "combiner": "OR",
+  "alertStrategy": {
+    "autoClose": "86400s"
+  },
+  "enabled": true
+}

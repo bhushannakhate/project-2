@@ -24,10 +24,15 @@ if __package__:
     from .pinboard_agents.tools.media_tools import (
         ALLOWED_AUDIO_TYPES,
         MAX_AUDIO_BYTES,
+        transcribe_audio_reference,
     )
 else:
     from pinboard_agents.agent import root_agent
-    from pinboard_agents.tools.media_tools import ALLOWED_AUDIO_TYPES, MAX_AUDIO_BYTES
+    from pinboard_agents.tools.media_tools import (
+        ALLOWED_AUDIO_TYPES,
+        MAX_AUDIO_BYTES,
+        transcribe_audio_reference,
+    )
 
 APP_NAME = "pinboard_studio"
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
@@ -52,6 +57,7 @@ class AgentWorkflowRequest(BaseModel):
     source_image_content_type: Literal["image/jpeg", "image/png", "image/webp"]
     audio_url: str | None = Field(default=None, min_length=1, max_length=4096)
     audio_content_type: str | None = None
+    audio_transcript: str | None = Field(default=None, max_length=4000)
 
     @field_validator("user_id", "creation_id")
     @classmethod
@@ -241,6 +247,11 @@ async def run_workflow(workflow: AgentWorkflowRequest, request: Request) -> JSON
                 {
                     "audio_url": workflow.audio_url,
                     "audio_content_type": workflow.audio_content_type,
+                    **(
+                        {"audio_transcript_override": workflow.audio_transcript}
+                        if workflow.audio_transcript
+                        else {}
+                    ),
                 }
                 if workflow.audio_url
                 else {}
@@ -314,6 +325,9 @@ async def run_workflow(workflow: AgentWorkflowRequest, request: Request) -> JSON
             "caption": str(package.get("caption", ""))[:1000],
             "audio_summary": str(package.get("audio_summary", ""))[:700],
             "image_analysis": str(package.get("image_analysis", ""))[:700],
+            "creative_brief": str(state.get("creative_brief", ""))[:2000],
+            "audio_transcript": str(state.get("audio_transcript", ""))[:4000],
+            "audio_confidence": state.get("audio_confidence"),
         }
         return JSONResponse(content=jsonable_encoder(response_body))
     except Exception as error:
@@ -374,3 +388,56 @@ async def run_workflow(workflow: AgentWorkflowRequest, request: Request) -> JSON
                 workflow.request_id,
                 type(error).__name__,
             )
+
+
+class TranscriptionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str = Field(pattern=r"^[0-9a-f-]{36}$")
+    user_id: str = Field(min_length=1, max_length=128)
+    creation_id: str = Field(min_length=1, max_length=1500)
+    audio_url: str = Field(min_length=1, max_length=4096)
+    audio_content_type: str
+
+    @field_validator("user_id", "creation_id")
+    @classmethod
+    def validate_document_id(cls, value: str) -> str:
+        if "/" in value or value.strip() != value:
+            raise ValueError("Invalid document identifier.")
+        return value
+
+    @field_validator("audio_content_type")
+    @classmethod
+    def validate_audio_type(cls, value: str) -> str:
+        if value not in ALLOWED_AUDIO_TYPES:
+            raise ValueError("Unsupported audio type.")
+        return value
+
+
+@app.post("/transcriptions", dependencies=[Depends(_authorize_caller)])
+async def transcribe_audio(request_data: TranscriptionRequest) -> JSONResponse:
+    try:
+        result = await transcribe_audio_reference(
+            audio_url=request_data.audio_url,
+            audio_content_type=request_data.audio_content_type,
+            user_id=request_data.user_id,
+            creation_id=request_data.creation_id,
+            request_id=request_data.request_id,
+        )
+        return JSONResponse(content=jsonable_encoder(result))
+    except Exception as error:
+        logger.error(
+            "Audio transcription failed request_id=%s error_type=%s error_detail=%s",
+            request_data.request_id,
+            type(error).__name__,
+            _safe_error_detail(error),
+        )
+        if _is_resource_exhausted(error, None):
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Gemini is temporarily at capacity. Retry shortly."},
+            )
+        raise HTTPException(
+            status_code=502,
+            detail=f"Audio transcription {request_data.request_id} could not be completed.",
+        ) from None
